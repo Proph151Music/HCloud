@@ -6,7 +6,7 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 - **Manage Servers**: Create, view, and delete servers on Hetzner Cloud.
 - **Firewall Management**: Easily create, edit, and manage firewalls with default rules.
 - **SSH Key Management**: Import and manage SSH keys locally and on Hetzner.
-- **Install nodectl**: Quickly install **nodectl** on your Hetzner servers for blockchain infrastructure management.
+- **Install nodectl**: Quickly install **nodectl** on your Hetzner servers.
 - **Cross-platform Support**: Works on Windows, macOS, Linux, and ChromeOS.
 
 ## Table of Contents
@@ -118,15 +118,18 @@ You will need this key when you first run HCloud to connect the tool to your Het
 
 ### Installing nodectl
 
-HCloud also provides the ability to install **nodectl**, a management tool for blockchain nodes, on your Hetzner servers.
+HCloud also provides the ability to install **nodectl**, on your Hetzner servers.
 
 1. **Select a server**: Choose an existing server in your Hetzner Cloud.
-2. **Configure nodectl**: Enter necessary details like the network (mainnet, testnet, etc.), your node's username, and optional P12 file details for node management.
+2. **Configure nodectl**: Enter necessary details like the network (mainnet, integrationnet, testnet, etc.), the node username to setup, upload/import an optional P12 file.
 3. **Install nodectl**: Click the "Install nodectl" button, and HCloud will handle the rest. You’ll be able to monitor the installation process in the log window.
 
-## Contact
+## Acknowledgments
+This script was written by @Proph151Music for the Constellation Network ecosystem. 
+Don't forget to tip the bar tender! 
 
-For issues or feedback, feel free to reach out to **Proph151Music** via the repository or through Techware's support channels.
+**DAG Wallet Address for sending tips:**
+`DAG0Zyq8XPnDKRB3wZaFcFHjL4seCLSDtHbUcYq3`
 
 ---
 
