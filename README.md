@@ -61,7 +61,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
 
 ### Windows
 
-1. Open **Command Prompt** or **PowerShell**.
+1. Open **Command Prompt** or **PowerShell**. Make sure it is running as an administrator.
 2. Download the `HCloud.py` file using:
    ```powershell
    curl -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/HCloud.py
