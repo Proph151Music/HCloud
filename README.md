@@ -80,7 +80,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
    ```
 3. Run the script:
    ```bash
-   python3 HCloud.py
+   python3 -m venv venv && source venv/bin/activate && python HCloud.py
    ```
 
 ### Linux
