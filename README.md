@@ -19,7 +19,7 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
   - [ChromeOS](#chromeos)
 - [How to Use HCloud](#how-to-use-hcloud)
   - [Installing nodectl](#installing-nodectl)
-- [Contact](#contact)
+- [Acknowledgments](#acknowledgments)
 
 ## Prerequisites
 - A **Hetzner Cloud account**.
