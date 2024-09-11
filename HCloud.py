@@ -946,8 +946,8 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             log_queue.put("nodectl not found. Proceeding with installation...\n")
 
             # Get the latest nodectl version
-            # nodectl_version = get_latest_nodectl_version()
-            nodectl_version = "v2.15.0"
+            nodectl_version = get_latest_nodectl_version()
+            # nodectl_version = "v2.15.0"
             log_queue.put(f"Latest nodectl version: {nodectl_version}\n")
 
             # Download nodectl using the download_nodectl function
