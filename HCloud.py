@@ -46,7 +46,7 @@ def restart_script():
         
 def install_pywin32(log_widget=None):
     logging.debug("Checking if PyWin32 is installed...")
-    if os.name == 'nt':  # Check if the OS is Windows
+    if os.name == 'nt':  # Only relevant for Windows systems
         try:
             import win32api  # Checking for any module from pywin32
             if log_widget:
@@ -64,17 +64,13 @@ def install_pywin32(log_widget=None):
                     log_widget.see(tk.END)
                 logging.debug("PyWin32 post-installation completed.")
                 
-                # Restart the script to load the newly installed modules
-                if log_widget:
-                    log_widget.insert(tk.END, "Restarting application to apply changes...\n")
-                    log_widget.see(tk.END)
+                # Optionally restart the script if needed
                 restart_script()
             except subprocess.CalledProcessError as e:
                 if log_widget:
-                    log_widget.insert(tk.END, f"Failed to run pywin32 post-installation: {e}\n")
+                    log_widget.insert(tk.END, f"Warning: Failed to run pywin32 post-installation: {e}\n")
                     log_widget.see(tk.END)
-                logging.error(f"Failed to run pywin32 post-installation: {e}")
-                sys.exit(1)
+                logging.warning(f"Failed to run pywin32 post-installation: {e}")
 
 def on_installation_complete(root, api_key):
     try:
@@ -572,8 +568,12 @@ def import_ssh(api_key, ssh_name, ssh_dropdown):
         ssh_keys = fetch_ssh_keys(api_key)
 
         # Fetch local SSH keys
-        local_ssh_keys = [f for f in os.listdir(os.path.expanduser("~/.ssh")) if f.endswith('.pub')]
-        local_ssh_keys = [os.path.splitext(f)[0] for f in local_ssh_keys]
+        ssh_dir = os.path.expanduser("~/.ssh")
+        if os.path.exists(ssh_dir):
+            local_ssh_keys = [f for f in os.listdir(ssh_dir) if f.endswith('.pub')]
+            local_ssh_keys = [os.path.splitext(f)[0] for f in local_ssh_keys]
+        else:
+            local_ssh_keys = []
 
         # Combine Hetzner SSH keys with local SSH keys and prefix "Local: " to local keys
         ssh_names_on_hetzner = [ssh['name'] for ssh in ssh_keys]
@@ -946,8 +946,8 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             log_queue.put("nodectl not found. Proceeding with installation...\n")
 
             # Get the latest nodectl version
-            nodectl_version = get_latest_nodectl_version()
-            # nodectl_version = "v2.15.0"
+            # nodectl_version = get_latest_nodectl_version()
+            nodectl_version = "v2.15.0"
             log_queue.put(f"Latest nodectl version: {nodectl_version}\n")
 
             # Download nodectl using the download_nodectl function
