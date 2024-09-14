@@ -12,7 +12,6 @@ import queue
 import threading
 import time
 
-
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def install_package(package_name, log_widget=None):
@@ -20,20 +19,20 @@ def install_package(package_name, log_widget=None):
         if log_widget:
             log_widget.insert(tk.END, f"Installing {package_name} package...\n")
             log_widget.see(tk.END)
-        print(f"Installing {package_name}...")  # Print to console
+        print(f"Installing {package_name}...")
 
         subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
 
         if log_widget:
             log_widget.insert(tk.END, f"Package {package_name} installed successfully.\n")
             log_widget.see(tk.END)
-        print(f"Package {package_name} installed successfully.")  # Print to console
+        print(f"Package {package_name} installed successfully.")
 
     except subprocess.CalledProcessError as e:
         if log_widget:
             log_widget.insert(tk.END, f"Failed to install package {package_name}: {e}\n")
             log_widget.see(tk.END)
-        print(f"Failed to install package {package_name}: {e}")  # Print to console
+        print(f"Failed to install package {package_name}: {e}")
         sys.exit(1)
 
 def restart_script():
@@ -76,14 +75,13 @@ def on_installation_complete(root, api_key):
     try:
         print("Installation complete. Hiding log window...")
 
-        # Use `root.after` to schedule the GUI updates on the main thread
-        root.after(0, lambda: log_window.withdraw())  # Hide the log window
+        root.after(0, lambda: log_window.withdraw()) 
 
         print("Hiding root window...")
-        root.after(0, lambda: root.withdraw())  # Hide the original root window instead of destroying it
+        root.after(0, lambda: root.withdraw())
 
         print("Creating application window...")
-        root.after(0, lambda: create_app_window(api_key))  # Create the main app window using a Toplevel window
+        root.after(0, lambda: create_app_window(api_key))
     except Exception as e:
         print(f"An error occurred in on_installation_complete: {e}")
 
@@ -124,7 +122,6 @@ def install_required_packages(log_widget=None):
     # Install PyWin32 specifically for Windows
     install_pywin32(log_widget)
 
-    # Now we can safely import the packages
     import requests
     import paramiko
 
@@ -143,6 +140,88 @@ def format_path(path):
         # Replace double forward slashes with a single slash
         return normalized_path.replace('//', '/')
 
+def read_firewall_info_from_file(server_name):
+    servers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SERVERS', server_name)
+    file_path = os.path.join(servers_dir, f"{server_name}.txt")
+
+    if not os.path.exists(file_path):
+        print(f"Server info file not found: {file_path}")
+        return '', []
+
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+
+    firewall_name = ''
+    firewall_rules = []
+    inside_firewall_rules = False
+
+    for line in lines:
+        stripped_line = line.strip()
+        if stripped_line.startswith("Firewall Name:"):
+            firewall_name = stripped_line[len("Firewall Name:"):].strip()
+        elif stripped_line == "Firewall Rules:":
+            inside_firewall_rules = True
+            continue 
+        elif stripped_line == "" and inside_firewall_rules:
+            inside_firewall_rules = False
+        elif inside_firewall_rules:
+            firewall_rules.append(stripped_line)
+        elif stripped_line == "Commands to access the server:":
+            break
+
+    return firewall_name, firewall_rules
+
+def save_server_info(server_name, server_ip, ssh_key_path, username, firewall_name, firewall_rules):
+    # Create SERVERS folder if it doesn't exist
+    servers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SERVERS', server_name)
+    os.makedirs(servers_dir, exist_ok=True)
+    file_path = os.path.join(servers_dir, f"{server_name}.txt")
+
+    # Format the ssh_key_path
+    formatted_ssh_key_path = format_path(ssh_key_path)
+
+    # Build the ssh and sftp commands
+    ssh_command = f"ssh -i {formatted_ssh_key_path} {username}@{server_ip}"
+    sftp_command = f"sftp -i {formatted_ssh_key_path} {username}@{server_ip}"
+
+    # Collect the information
+    info_lines = [
+        f"Server Name: {server_name}",
+        f"Host IP: {server_ip}",
+        f"SSH Key Path: {formatted_ssh_key_path}",
+        f"Username: {username}",
+        f"\nFirewall Name: {firewall_name}",
+        "Firewall Rules:",
+    ]
+
+    # Add firewall rules
+    for rule in firewall_rules:
+        info_lines.append(str(rule))
+
+    # Add commands
+    info_lines.extend([
+        "",
+        "Commands to access the server:",
+        ssh_command,
+        sftp_command,
+    ])
+
+    # Write to the file
+    with open(file_path, 'w') as f:
+        f.write('\n'.join(info_lines))
+
+    return file_path
+
+def get_firewall_details(api_key, firewall_id):
+    headers = {'Authorization': f'Bearer {api_key}'}
+    url = f'https://api.hetzner.cloud/v1/firewalls/{firewall_id}'
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()['firewall']
+    else:
+        print(f"Failed to fetch firewall details: {response.text}")
+        return {}
+    
 # Function to save configuration to a file
 def save_config(config_data, config_file='config.txt'):
     with open(config_file, 'w') as file:
@@ -229,8 +308,13 @@ def fetch_server_details(api_key, server_name):
     expected_ssh_label = f"{server_name.lower().replace(' ', '-')}-ssh"
     matching_ssh_keys = [key['name'] for key in ssh_keys if key['name'].lower() == expected_ssh_label]
 
-    # Fetch firewall details
-    firewall_ids = [fw['id'] for fw in server.get('public_net', {}).get('firewalls', [])]
+    # Fetch firewall IDs directly from the server object
+    firewall_ids = []
+    for fw in server.get('firewalls', []):
+        firewall = fw.get('firewall')
+        if firewall and 'id' in firewall:
+            firewall_ids.append(firewall['id'])
+
     firewall_names = []
     if firewall_ids:
         firewalls_response = requests.get('https://api.hetzner.cloud/v1/firewalls', headers=headers)
@@ -245,7 +329,8 @@ def fetch_server_details(api_key, server_name):
         'server_type': server['server_type']['name'],
         'cores': server['server_type']['cores'],
         'memory': server['server_type']['memory'],
-        'disk': server['server_type']['disk']
+        'disk': server['server_type']['disk'],
+        'firewall_ids': firewall_ids
     }
 
 def create_new_firewall_with_defaults(api_key, firewall_name):
@@ -383,12 +468,12 @@ def create_edit_firewall_window(api_key, firewall_details, firewall_dropdown):
         elif protocol == "icmp":
             # Protocol for ICMP (non-editable)
             tk.Label(row, text="icmp", width=10).pack(side=tk.LEFT)
-            tk.Label(row, text="", width=15).pack(side=tk.LEFT)  # ICMP does not have a port range
+            tk.Label(row, text="", width=15).pack(side=tk.LEFT)
         else:
             # Protocol dropdown menu
             protocol_options = ["tcp", "udp"]
             protocol_menu = ttk.Combobox(row, values=protocol_options, width=10)
-            protocol_menu.set(protocol)  # Set the current protocol
+            protocol_menu.set(protocol)
             protocol_menu.pack(side=tk.LEFT)
 
             # Port range input
@@ -767,7 +852,28 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
         server_ip = response.json()['server']['public_net']['ipv4']['ip']
         remove_ip_from_known_hosts(server_ip)
 
-        messagebox.showinfo("Success", f"Server '{server_name}' created successfully.")
+        # Get the SSH key path
+        ssh_key_path = os.path.expanduser(f'~/.ssh/{selected_ssh_key_name}')
+
+        # Username is 'root' before nodectl is installed
+        username = 'root'
+
+        # Get firewall name and rules
+        firewall_details = get_firewall_details(api_key, firewall_id)
+        firewall_name = firewall_details.get('name', '')
+        firewall_rules = firewall_details.get('rules', [])
+
+        # Save server information to file
+        server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username, firewall_name, firewall_rules)
+
+        # Show messagebox with information and hyperlink to open the file
+        message_text = f"Server '{server_name}' created successfully.\n\nServer information saved to:\n{server_info_file}"
+        if os.name == 'nt':
+            if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?"):
+                os.startfile(server_info_file)
+        else:
+            if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?"):
+                subprocess.call(['xdg-open', server_info_file])
     else:
         messagebox.showerror("Error", f"Failed to create server. Response: {response.text}")
 
@@ -946,8 +1052,8 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             log_queue.put("nodectl not found. Proceeding with installation...\n")
 
             # Get the latest nodectl version
-            nodectl_version = get_latest_nodectl_version()
-            # nodectl_version = "v2.15.0"
+            # nodectl_version = get_latest_nodectl_version()
+            nodectl_version = "v2.15.0"
             log_queue.put(f"Latest nodectl version: {nodectl_version}\n")
 
             # Download nodectl using the download_nodectl function
@@ -960,7 +1066,7 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 "then echo 'nodectl is installed and executable'; "
                 "else echo 'nodectl download failed'; fi"
             )
-            log_queue.put(f"Verifying installation with command: {verify_command}\n")
+            # log_queue.put(f"Verifying installation with command: {verify_command}\n")
             stdin, stdout, stderr = client.exec_command(verify_command)
             verify_output = stdout.read().decode('utf-8')
 
@@ -1027,8 +1133,36 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                     log_queue.put("nodectl installation process completed.\n")
                     # End the tmux session
                     client.exec_command('tmux kill-session -t nodectl_install')
-                    parent_window.after(0, lambda: tk.messagebox.showinfo("Installation Complete", "nodectl has completed installing successfully!"))
+
+                    # Update username to node_username
+                    username = node_username
+
+                    # Get the SSH key path
+                    ssh_key_path = os.path.expanduser(f'~/.ssh/{ssh_key}')
+
+                    # Read firewall info from the existing server info file
+                    firewall_name, firewall_rules = read_firewall_info_from_file(server_name)
+                    if not firewall_name:
+                        firewall_name = ''
+                    if not firewall_rules:
+                        firewall_rules = []
+
+                    # Save server information to file
+                    server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username, firewall_name, firewall_rules)
+
+                    # Show messagebox with information and hyperlink to open the file
+                    def show_message():
+                        message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{server_info_file}"
+                        if os.name == 'nt':
+                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?"):
+                                os.startfile(server_info_file)
+                        else:
+                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?"):
+                                subprocess.call(['xdg-open', server_info_file])
+
+                    parent_window.after(0, show_message)
                     break
+
         except Exception as e:
             log_queue.put(f"SSH operation failed: {str(e)}\n")
         finally:
