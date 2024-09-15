@@ -4,7 +4,7 @@ This script is currently in beta!
 If you use it, please make sure you report any issues to @Proph151Music
 The script will be getting more updates soon to add improvements based on user feedback.
 
-Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner Cloud infrastructure effortlessly. Whether you're managing servers, firewalls, SSH keys, or installing **nodectl** for blockchain management, HCloud provides a user-friendly interface to streamline your cloud operations. Created by **Proph151Music** from **Techware**, this application ensures anyone can manage cloud resources without needing to be a tech expert.
+Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner Cloud infrastructure effortlessly. Whether you're managing servers, firewalls, SSH keys, or installing **nodectl**, HCloud provides a user-friendly interface to streamline your cloud operations. Created by **Proph151Music** from **Techware**, this application ensures anyone can manage cloud resources without needing to be a tech expert.
 
 ## Key Features
 - **Manage Servers**: Create, view, and delete servers on Hetzner Cloud.
