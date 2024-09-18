@@ -12,6 +12,15 @@ import queue
 import threading
 import time
 
+root = None
+
+if os.environ.get("RESTARTED") == "1":
+    # Remove the environment variable to prevent infinite restarts
+    del os.environ["RESTARTED"]
+else:
+    # This is the first run; proceed normally
+    pass
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def install_package(package_name, log_widget=None):
@@ -37,9 +46,34 @@ def install_package(package_name, log_widget=None):
 
 def restart_script():
     try:
-        # print("Restarting script...")
-        subprocess.check_call([sys.executable] + sys.argv)
-    except subprocess.CalledProcessError as e:
+        # Use the main Tkinter root
+        global root
+        if root is not None:
+            # Inform the user that the script needs to restart
+            messagebox.showinfo("Restart Required", "The script has finished installing dependencies. Please launch the script again to continue.")
+
+            # Destroy the root window
+            root.destroy()
+
+            # Stop the mainloop
+            root.quit()
+        else:
+            # If root is None, initialize it (unlikely in this context)
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showinfo("Restart Required", "The script has finished installing dependencies. Please launch the script again to continue.")
+            root.destroy()
+
+        # Set an environment variable to indicate the script has restarted
+        os.environ["RESTARTED"] = "1"
+
+        # Start a new instance of the script
+        subprocess.Popen([sys.executable] + sys.argv)
+
+        # Close the current instance
+        sys.exit(0)
+
+    except Exception as e:
         print(f"Failed to restart script: {e}")
         sys.exit(1)
         
@@ -142,75 +176,76 @@ def format_path(path):
 
 def read_firewall_info_from_file(server_name):
     servers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SERVERS', server_name)
-    file_path = os.path.join(servers_dir, f"{server_name}.txt")
+    ssh_config_file_path = os.path.join(servers_dir, f"{server_name}_ssh_config.txt")
 
-    if not os.path.exists(file_path):
-        print(f"Server info file not found: {file_path}")
+    if not os.path.exists(ssh_config_file_path):
+        print(f"SSH config file not found: {ssh_config_file_path}")
         return '', []
-
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
 
     firewall_name = ''
     firewall_rules = []
-    inside_firewall_rules = False
 
+    with open(ssh_config_file_path, 'r') as f:
+        lines = f.readlines()
+
+    inside_firewall_rules = False
     for line in lines:
         stripped_line = line.strip()
-        if stripped_line.startswith("Firewall Name:"):
-            firewall_name = stripped_line[len("Firewall Name:"):].strip()
-        elif stripped_line == "Firewall Rules:":
+        if stripped_line.startswith("# Firewall Name:"):
+            firewall_name = stripped_line[len("# Firewall Name:"):].strip()
+        elif stripped_line == "# Firewall Rules:":
             inside_firewall_rules = True
-            continue 
-        elif stripped_line == "" and inside_firewall_rules:
-            inside_firewall_rules = False
+            continue
         elif inside_firewall_rules:
-            firewall_rules.append(stripped_line)
-        elif stripped_line == "Commands to access the server:":
-            break
+            if stripped_line.startswith("# "):
+                firewall_rules.append(stripped_line[2:])
+            else:
+                inside_firewall_rules = False
 
     return firewall_name, firewall_rules
 
-def save_server_info(server_name, server_ip, ssh_key_path, username, firewall_name, firewall_rules):
+def save_server_info(server_name, server_ip, ssh_key_path, username):
     # Create SERVERS folder if it doesn't exist
     servers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SERVERS', server_name)
     os.makedirs(servers_dir, exist_ok=True)
-    file_path = os.path.join(servers_dir, f"{server_name}.txt")
+    ssh_config_file_path = os.path.join(servers_dir, f"{server_name}_ssh_config.txt")
 
-    # Format the ssh_key_path
+    # Format the ssh_key_path for SSH config
     formatted_ssh_key_path = format_path(ssh_key_path)
 
-    # Build the ssh and sftp commands
+    # Collect the SSH config information
+    ssh_config_lines = [
+        f"Host {server_name}",
+        f"    HostName {server_ip}",
+        f"    User {username}",
+        f"    IdentityFile {formatted_ssh_key_path}",
+        "    Port 22",
+        "",  # Empty line for readability
+        # "# Firewall Name: {}".format(firewall_name),
+        # "# Firewall Rules:",
+    ]
+
+    # # Add firewall rules as comments
+    # for rule in firewall_rules:
+    #     ssh_config_lines.append(f"# {rule}")
+
+    # Add commands as comments
     ssh_command = f"ssh -i {formatted_ssh_key_path} {username}@{server_ip}"
     sftp_command = f"sftp -i {formatted_ssh_key_path} {username}@{server_ip}"
 
-    # Collect the information
-    info_lines = [
-        f"Server Name: {server_name}",
-        f"Host IP: {server_ip}",
-        f"SSH Key Path: {formatted_ssh_key_path}",
-        f"Username: {username}",
-        f"\nFirewall Name: {firewall_name}",
-        "Firewall Rules:",
-    ]
-
-    # Add firewall rules
-    for rule in firewall_rules:
-        info_lines.append(str(rule))
-
-    # Add commands
-    info_lines.extend([
+    ssh_config_lines.extend([
         "",
-        "Commands to access the server:",
-        ssh_command,
-        sftp_command,
+        "# Commands to access the server:",
+        f"# {ssh_command}",
+        f"# {sftp_command}",
     ])
 
-    # Write to the file
-    with open(file_path, 'w') as f:
-        f.write('\n'.join(info_lines))
+    # Write the SSH config to the file
+    with open(ssh_config_file_path, 'w') as f:
+        f.write('\n'.join(ssh_config_lines))
 
-    return file_path
+    # Return the path to the SSH config file
+    return ssh_config_file_path
 
 def get_firewall_details(api_key, firewall_id):
     headers = {'Authorization': f'Bearer {api_key}'}
@@ -860,11 +895,11 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
 
         # Get firewall name and rules
         firewall_details = get_firewall_details(api_key, firewall_id)
-        firewall_name = firewall_details.get('name', '')
-        firewall_rules = firewall_details.get('rules', [])
+        # firewall_name = firewall_details.get('name', '')
+        # firewall_rules = firewall_details.get('rules', [])
 
         # Save server information to file
-        server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username, firewall_name, firewall_rules)
+        server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username)
 
         # Show messagebox with information and hyperlink to open the file
         message_text = f"Server '{server_name}' created successfully.\n\nServer information saved to:\n{server_info_file}"
@@ -940,7 +975,137 @@ class PasswordDialog(tk.Toplevel):
         parent.wait_window(dialog)
         return dialog.value
 
-def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, node_username, network, parent_window):
+def create_unix_aliases(server_name, ssh_command, sftp_command):
+    home_dir = os.path.expanduser('~')
+    bin_dir = os.path.join(home_dir, 'bin')
+
+    # Create bin directory if it doesn't exist
+    os.makedirs(bin_dir, exist_ok=True)
+
+    # Ensure that ~/bin is in PATH
+    bashrc_path = os.path.join(home_dir, '.bashrc')
+    with open(bashrc_path, 'a') as bashrc:
+        bashrc.write('\n# Add ~/bin to PATH\n')
+        bashrc.write('export PATH="$HOME/bin:$PATH"\n')
+
+    # Create SSH script
+    ssh_script_path = os.path.join(bin_dir, f"{server_name}_ssh")
+    with open(ssh_script_path, 'w') as ssh_script:
+        ssh_script.write(f"#!/bin/bash\n{ssh_command} \"$@\"\n")
+    os.chmod(ssh_script_path, 0o755)
+
+    # Create SFTP script
+    sftp_script_path = os.path.join(bin_dir, f"{server_name}_sftp")
+    with open(sftp_script_path, 'w') as sftp_script:
+        sftp_script.write(f"#!/bin/bash\n{sftp_command} \"$@\"\n")
+    os.chmod(sftp_script_path, 0o755)
+
+def create_windows_shortcuts(server_name, ssh_command, sftp_command):
+    import pythoncom
+    import win32com.client
+
+    # Get the Desktop path using Windows Shell
+    shell = win32com.client.Dispatch("WScript.Shell")
+    desktop_path = shell.SpecialFolders("Desktop")
+
+    # Create SSH shortcut
+    ssh_shortcut_path = os.path.join(desktop_path, f"{server_name} SSH.lnk")
+    create_windows_shortcut_from_command(ssh_shortcut_path, ssh_command, "SSH Shortcut")
+
+    # Create SFTP shortcut
+    sftp_shortcut_path = os.path.join(desktop_path, f"{server_name} SFTP.lnk")
+    create_windows_shortcut_from_command(sftp_shortcut_path, sftp_command, "SFTP Shortcut")
+
+def create_windows_shortcut_from_command(shortcut_path, command, description):
+    try:
+        import pythoncom
+        import win32com.client
+        from shutil import which
+        import shlex
+    except ImportError:
+        print("PyWin32 is not installed. Cannot create shortcuts.")
+        return
+    
+    # Initialize the COM library
+    pythoncom.CoInitialize()
+
+    shell = win32com.client.Dispatch("WScript.Shell")
+    shortcut = shell.CreateShortCut(shortcut_path)
+
+    # Split the command into executable and arguments
+    cmd_parts = shlex.split(command)
+    executable = cmd_parts[0]
+    arguments = ' '.join(cmd_parts[1:])
+
+    # Find the full path to the executable
+    target = None
+    executable_name = executable.lower()
+
+    # Define possible paths for ssh and sftp
+    if executable_name == 'ssh':
+        possible_executables = [
+            'ssh.exe',  # Explicitly look for ssh.exe
+        ]
+    elif executable_name == 'sftp':
+        possible_executables = [
+            'sftp.exe',  # Explicitly look for sftp.exe
+        ]
+    else:
+        possible_executables = [executable]
+
+    # Search for the executable in PATH
+    for exec_name in possible_executables:
+        target = which(exec_name)
+        if target and os.path.isfile(target):
+            break
+        else:
+            target = None
+
+    # If not found, check common default locations
+    if not target:
+        if executable_name == 'ssh':
+            possible_paths = [
+                r'C:\Windows\System32\OpenSSH\ssh.exe',
+                r'C:\Program Files\Git\usr\bin\ssh.exe',
+                r'C:\Program Files\OpenSSH-Win64\ssh.exe',
+            ]
+        elif executable_name == 'sftp':
+            possible_paths = [
+                r'C:\Windows\System32\OpenSSH\sftp.exe',
+                r'C:\Program Files\Git\usr\bin\sftp.exe',
+                r'C:\Program Files\OpenSSH-Win64\sftp.exe',
+            ]
+        else:
+            possible_paths = []
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                target = path
+                break
+
+    if not target:
+        print(f"Executable {executable} not found in PATH or default locations.")
+        return
+    
+    shortcut.Targetpath = target
+    shortcut.Arguments = arguments
+    shortcut.WorkingDirectory = os.getcwd()
+    shortcut.Description = description
+
+    # Set icon based on the type
+    if "ssh" in executable.lower():
+        # Use the built-in Command Prompt icon
+        shortcut.IconLocation = r'%SystemRoot%\system32\SHELL32.dll,135'
+    elif "sftp" in executable.lower():
+        # Use the built-in Network icon
+        shortcut.IconLocation = r'%SystemRoot%\system32\SHELL32.dll,146'
+    else:
+        # Use a default built-in icon
+        shortcut.IconLocation = r'%SystemRoot%\system32\SHELL32.dll,1'
+
+    shortcut.save()
+
+def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, node_username, network, parent_window, create_shortcuts_var):
     ssh_passphrase = PasswordDialog.ask_password(parent_window, "SSH Passphrase", f"Enter passphrase for SSH key '{ssh_key}':")
     if not ssh_passphrase:
         status_text.insert(tk.END, "Installation canceled by the user.\n")
@@ -970,10 +1135,12 @@ def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, 
     log_window.destroy()  # Close the log window after installation is done
     log_queue = queue.Queue()
 
+    create_shortcuts = create_shortcuts_var.get()
+
     # Start the installation in a separate thread
     install_thread = threading.Thread(
         target=install_nodectl_thread, 
-        args=(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window)  # Add parent_window here
+        args=(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts)
     )
     install_thread.start()
 
@@ -1003,7 +1170,7 @@ def download_nodectl(client, nodectl_version, log_queue):
     log_queue.put("Failed to download nodectl after multiple attempts.\n")
     return False
 
-def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window):
+def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts):
     try:
         log_queue.put("Starting nodectl installation process...\n")
 
@@ -1140,25 +1307,35 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                     # Get the SSH key path
                     ssh_key_path = os.path.expanduser(f'~/.ssh/{ssh_key}')
 
-                    # Read firewall info from the existing server info file
-                    firewall_name, firewall_rules = read_firewall_info_from_file(server_name)
-                    if not firewall_name:
-                        firewall_name = ''
-                    if not firewall_rules:
-                        firewall_rules = []
+                    # Construct the SSH and SFTP commands
+                    ssh_command = f'ssh -i "{ssh_key_path}" {username}@{server_ip}'
+                    sftp_command = f'sftp -i "{ssh_key_path}" {username}@{server_ip}'
+
+                    # # Read firewall info from the existing server info file
+                    # firewall_name, firewall_rules = read_firewall_info_from_file(server_name)
+                    # if not firewall_name:
+                    #     firewall_name = ''
+                    # if not firewall_rules:
+                    #     firewall_rules = []
 
                     # Save server information to file
-                    server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username, firewall_name, firewall_rules)
+                    ssh_config_file = save_server_info(server_name, server_ip, ssh_key_path, username)
+
+                    if create_shortcuts:
+                        if os.name == 'nt':
+                            create_windows_shortcuts(server_name, ssh_command, sftp_command)
+                        else:
+                            create_unix_aliases(server_name, ssh_command, sftp_command)
 
                     # Show messagebox with information and hyperlink to open the file
                     def show_message():
-                        message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{server_info_file}"
+                        message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{ssh_config_file}"
                         if os.name == 'nt':
                             if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?"):
-                                os.startfile(server_info_file)
+                                os.startfile(ssh_config_file)
                         else:
                             if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?"):
-                                subprocess.call(['xdg-open', server_info_file])
+                                subprocess.call(['xdg-open', ssh_config_file])
 
                     parent_window.after(0, show_message)
                     break
@@ -1228,6 +1405,8 @@ def create_app_window(api_key):
 
     menu_bar = tk.Menu(app)
     app.config(menu=menu_bar)
+
+    create_shortcuts_var = tk.BooleanVar()
 
     # File menu
     file_menu = tk.Menu(menu_bar, tearoff=0)
@@ -1529,6 +1708,13 @@ def create_app_window(api_key):
                                 command=lambda: p12_file_var.set(filedialog.askopenfilename(filetypes=[("P12 Files", "*.p12"), ("All Files", "*.*")])))
     p12_file_button.grid(row=4, column=2, padx=10, pady=10, sticky='e')
 
+    create_shortcuts_checkbox = tk.Checkbutton(
+        install_nodectl_tab,
+        text="Create SSH & SFTP Desktop Shortcuts" if os.name == 'nt' else "Create SSH & SFTP Aliases",
+        variable=create_shortcuts_var
+    )
+    create_shortcuts_checkbox.grid(row=5, column=1, padx=10, pady=5, sticky='w')
+
     install_button = tk.Button(
         install_nodectl_tab, 
         text="Install nodectl", 
@@ -1540,7 +1726,8 @@ def create_app_window(api_key):
             p12_file_var.get(), 
             node_username_var.get(), 
             selected_network_var.get(),
-            app
+            app,
+            create_shortcuts_var
         ), 
         bg="dark blue", 
         fg="white", 
@@ -1652,6 +1839,7 @@ def validate_api_key(api_key):
         return False
 
 def prompt_api_key():
+    global root
     root = tk.Tk()
     root.title("API Key Input")
     root.geometry("300x150")
