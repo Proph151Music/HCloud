@@ -11,6 +11,7 @@ import urllib.request
 import queue
 import threading
 import time
+import ipaddress
 
 root = None
 
@@ -370,10 +371,85 @@ def fetch_server_details(api_key, server_name):
 
 def create_new_firewall_with_defaults(api_key, firewall_name):
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
-    
+
+    # Fetch the user's WAN IP
+    wan_ip = get_wan_ip()
+    if not wan_ip:
+        messagebox.showerror(
+            "Error",
+            "Failed to fetch your WAN IP address. Cannot restrict SSH access to your Home IP."
+        )
+        # Proceed with default rules
+        source_ips_ssh = ["0.0.0.0/0", "::/0"]
+    else:
+        # Show the user the WAN IP found
+        message_text = (
+            f"Your current WAN IP address is: {wan_ip}\n\n"
+            "Do you want to restrict SSH access to this IP for extra security?"
+        )
+        add_home_ip = messagebox.askyesno("Add Extra Security", message_text)
+
+        if add_home_ip:
+            source_ips_ssh = [f"{wan_ip}/32" if ':' not in wan_ip else f"{wan_ip}/128"]
+            # Ask if they would like to manually add any other IPs
+            add_more_ips = messagebox.askyesno(
+                "Additional IPs",
+                "Would you like to add any other IP addresses or CIDR ranges to allow SSH access from?"
+            )
+            if add_more_ips:
+                while True:
+                    additional_ips = simpledialog.askstring(
+                        "Additional IPs",
+                        "Enter additional IP addresses or CIDR ranges, separated by commas:\n\n"
+                        "You can find out the IP address at each location by visiting whatsmyip.org "
+                        "from a device connected to that network."
+                    )
+                    if additional_ips:
+                        # Split and strip the input
+                        additional_ips_list = [ip.strip() for ip in additional_ips.split(',') if ip.strip()]
+                        # Process each IP/CIDR
+                        processed_ips = []
+                        invalid_ips = []
+                        for ip in additional_ips_list:
+                            original_ip = ip  # Keep the original input for error messages
+                            # Check if CIDR notation is present
+                            if '/' not in ip:
+                                # Determine if it's IPv4 or IPv6 and append appropriate CIDR
+                                try:
+                                    ip_obj = ipaddress.ip_address(ip)
+                                    if isinstance(ip_obj, ipaddress.IPv4Address):
+                                        ip = f"{ip}/32"
+                                    else:
+                                        ip = f"{ip}/128"
+                                except ValueError:
+                                    invalid_ips.append(original_ip)
+                                    continue
+                            # Validate the IP/CIDR
+                            try:
+                                ipaddress.ip_network(ip, strict=False)
+                                processed_ips.append(ip)
+                            except ValueError:
+                                invalid_ips.append(original_ip)
+                        if invalid_ips:
+                            messagebox.showerror(
+                                "Invalid IP(s)",
+                                f"The following IP addresses or CIDR ranges are invalid:\n\n{', '.join(invalid_ips)}\n\n"
+                                "Please enter valid IP addresses or CIDR ranges."
+                            )
+                            continue  # Prompt again
+                        else:
+                            source_ips_ssh.extend(processed_ips)
+                            break
+                    else:
+                        # User did not enter any additional IPs
+                        break
+        else:
+            # Allow SSH from any IP
+            source_ips_ssh = ["0.0.0.0/0", "::/0"]
+
     # Default rules to include when creating a new firewall
     default_rules = [
-        {"direction": "in", "protocol": "tcp", "port": "22", "source_ips": ["0.0.0.0/0", "::/0"]},
+        {"direction": "in", "protocol": "tcp", "port": "22", "source_ips": source_ips_ssh},
         {"direction": "in", "protocol": "icmp", "source_ips": ["0.0.0.0/0", "::/0"]},
         {"direction": "in", "protocol": "tcp", "port": "9000-9001", "source_ips": ["0.0.0.0/0", "::/0"]},
         {"direction": "in", "protocol": "tcp", "port": "9010-9011", "source_ips": ["0.0.0.0/0", "::/0"]}
@@ -710,6 +786,18 @@ def create_ssh_key(api_key, ssh_key_name, passphrase, ssh_dropdown):
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
     url = "https://api.hetzner.cloud/v1/ssh_keys"
 
+    # Check if SSH key already exists on Hetzner
+    ssh_keys = fetch_ssh_keys(api_key)
+    if any(ssh['name'] == ssh_key_name for ssh in ssh_keys):
+        messagebox.showwarning("SSH Key Exists", f"The SSH key '{ssh_key_name}' already exists on Hetzner.")
+        return None
+
+    # Check if SSH key already exists locally
+    key_path = os.path.expanduser(f"~/.ssh/{ssh_key_name}")
+    if os.path.exists(key_path) or os.path.exists(f"{key_path}.pub"):
+        messagebox.showerror("Error", "The SSH key already exists locally and cannot be overwritten.")
+        return None
+    
     if passphrase is None:
         # Prompt the user for a passphrase
         passphrase = simpledialog.askstring("Passphrase", f"Enter passphrase for SSH key '{ssh_key_name}':", show='*')
@@ -846,31 +934,106 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
     # Try to find the selected SSH key in Hetzner
     ssh_key = next((key for key in ssh_keys if key['name'] == selected_ssh_key_name), None)
 
-    # If no SSH key is found, log an error and exit
-    if not ssh_key:
-        local_key_path = os.path.expanduser(f"~/.ssh/{selected_ssh_key_name}")
-        if os.path.exists(local_key_path) and os.path.exists(f"{local_key_path}.pub"):
-            if messagebox.askyesno("Import SSH Key", f"The SSH key '{selected_ssh_key_name}' was not found on Hetzner. Do you want to import it from your local machine?"):
-                import_ssh(api_key, selected_ssh_key_name, ssh_dropdown)
-            else:
+    # Paths to local SSH keys
+    local_private_key_path = os.path.expanduser(f"~/.ssh/{selected_ssh_key_name}")
+    local_public_key_path = f"{local_private_key_path}.pub"
+
+    # Check if SSH keys exist locally
+    ssh_private_key_exists = os.path.isfile(local_private_key_path)
+    ssh_public_key_exists = os.path.isfile(local_public_key_path)
+
+    # Scenario 1: SSH Key Exists Locally but Not on Hetzner
+    if ssh_private_key_exists and not ssh_key:
+        if messagebox.askyesno("Import SSH Key", f"The SSH key '{selected_ssh_key_name}' exists locally but not on Hetzner. Do you want to import it to Hetzner?"):
+            import_ssh(api_key, selected_ssh_key_name, ssh_dropdown)
+            ssh_key = next((key for key in fetch_ssh_keys(api_key) if key['name'] == selected_ssh_key_name), None)
+            if not ssh_key:
+                messagebox.showerror("Error", "Failed to import SSH key to Hetzner.")
                 return
         else:
-            passphrase = simpledialog.askstring("Passphrase", f"Enter passphrase for SSH key '{selected_ssh_key_name}':", show='*')
-            if passphrase:
-                create_ssh_key(api_key, selected_ssh_key_name, passphrase, ssh_dropdown)
+            messagebox.showinfo("Operation Cancelled", "Server creation cancelled.")
+            return
+        
+    # Scenario 2: SSH Key Exists on Hetzner but Not Locally
+    elif ssh_key and not ssh_private_key_exists:
+        if messagebox.askyesno("Locate SSH Key", f"The SSH key '{selected_ssh_key_name}' exists on Hetzner but not locally. \n\nDo you want to locate the SSH private key?"):
+            # Prompt user to select the private key file
+            ssh_file_path = filedialog.askopenfilename(title='Select SSH Private Key', initialdir=os.path.expanduser('~'))
+            if ssh_file_path:
+                # Validate that the selected key matches the public key on Hetzner
+                if os.path.isfile(ssh_file_path + '.pub'):
+                    with open(ssh_file_path + '.pub', 'r') as pub_key_file:
+                        local_public_key = pub_key_file.read().strip()
+                    if local_public_key == ssh_key['public_key'].strip():
+                        messagebox.showinfo("Success", "SSH key validated successfully.")
+
+                        # Paths to copy the SSH key files to ~/.ssh/
+                        destination_private_key = os.path.expanduser(f'~/.ssh/{selected_ssh_key_name}')
+                        destination_public_key = os.path.expanduser(f'~/.ssh/{selected_ssh_key_name}.pub')
+                        
+                        # Check if the destination files already exist
+                        if os.path.exists(destination_private_key) or os.path.exists(destination_public_key):
+                            messagebox.showwarning(
+                                "File Exists",
+                                f"The SSH key files already exist in '~/.ssh/'. The existing files will not be overwritten."
+                            )
+                            # Use the existing files
+                        else:
+                            # Copy the SSH key files to the ~/.ssh/ directory
+                            try:
+                                import shutil
+                                shutil.copy2(ssh_file_path, destination_private_key)
+                                shutil.copy2(ssh_file_path + '.pub', destination_public_key)
+                                messagebox.showinfo("Success", f"SSH key files copied to '~/.ssh/'.")
+                            except Exception as e:
+                                messagebox.showerror("Error", f"Failed to copy SSH key files: {e}")
+                                return
+                            
+                        # Update the paths to use the located key in ~/.ssh/
+                        local_private_key_path = destination_private_key
+                        local_public_key_path = destination_public_key
+                        ssh_private_key_exists = True
+                    else:
+                        messagebox.showerror("Validation Failed", "The selected SSH key does not match the one on Hetzner.")
+                        return
+                else:
+                    messagebox.showerror("Error", "Public key file not found alongside the private key.")
+                    return
             else:
-                messagebox.showinfo("Cancelled", "SSH key creation cancelled.")
+                messagebox.showinfo("Operation Cancelled", "Server creation cancelled.")
                 return
-        ssh_key = next((key for key in fetch_ssh_keys(api_key) if key['name'] == selected_ssh_key_name), None)
-    elif not os.path.exists(os.path.expanduser(f"~/.ssh/{selected_ssh_key_name}")):
-        messagebox.showwarning("Warning", f"The SSH key '{selected_ssh_key_name}' exists on Hetzner but not locally. Ensure you have the private key when connecting to the server.")
+        else:
+            messagebox.showinfo("Operation Cancelled", "Server creation cancelled.")
+            return
+        
+    # Scenario 3: SSH Key Exists Both Locally and on Hetzner
+    elif ssh_key and ssh_private_key_exists:
+        # Use the existing SSH key
+        pass
 
+    # Scenario 4: SSH Key Does Not Exist Locally or on Hetzner
+    elif not ssh_key and not ssh_private_key_exists:
+        passphrase = simpledialog.askstring("Passphrase", f"Enter passphrase for the new SSH key '{selected_ssh_key_name}':", show='*')
+        if passphrase is not None:
+            create_ssh_key(api_key, selected_ssh_key_name, passphrase, ssh_dropdown)
+            ssh_key = next((key for key in fetch_ssh_keys(api_key) if key['name'] == selected_ssh_key_name), None)
+            if not ssh_key:
+                messagebox.showerror("Error", "Failed to create SSH key on Hetzner.")
+                return
+        else:
+            messagebox.showinfo("Operation Cancelled", "Server creation cancelled.")
+            return
+        
+    # Ensure ssh_key is available
+    if not ssh_key:
+        messagebox.showerror("Error", "SSH key is not available. Cannot proceed.")
+        return
+    
+    # Proceed with creating the server using ssh_key['id']
     ssh_key_id = ssh_key['id']
-    print(f"Using existing SSH key with ID {ssh_key_id} and label '{selected_ssh_key_name}'.")
-
-    # Check the value of firewall_id
-    print(f"Firewall ID being passed: {firewall_id}")
-
+    print(f"Using SSH key with ID {ssh_key_id} and name '{selected_ssh_key_name}'.")
+    
+    # Continue with your existing code to create the server
     data = {
         'name': server_name,
         'server_type': server_type,
@@ -879,35 +1042,33 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
         'firewalls': [{'firewall': firewall_id}],
         'ssh_keys': [ssh_key_id]
     }
-    
+
     response = requests.post('https://api.hetzner.cloud/v1/servers', headers=headers, json=data)
-    
+
     if response.status_code == 201:
         # If server creation is successful, remove the server IP from known_hosts
         server_ip = response.json()['server']['public_net']['ipv4']['ip']
         remove_ip_from_known_hosts(server_ip)
 
-        # Get the SSH key path
-        ssh_key_path = os.path.expanduser(f'~/.ssh/{selected_ssh_key_name}')
+        # Get the SSH key path (ensure it points to the correct key)
+        ssh_key_path = local_private_key_path
 
         # Username is 'root' before nodectl is installed
         username = 'root'
 
-        # Get firewall name and rules
+        # Get firewall details if needed
         firewall_details = get_firewall_details(api_key, firewall_id)
-        # firewall_name = firewall_details.get('name', '')
-        # firewall_rules = firewall_details.get('rules', [])
 
         # Save server information to file
         server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username)
 
-        # Show messagebox with information and hyperlink to open the file
+        # Show messagebox with information and option to open the file
         message_text = f"Server '{server_name}' created successfully.\n\nServer information saved to:\n{server_info_file}"
         if os.name == 'nt':
-            if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?"):
+            if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
                 os.startfile(server_info_file)
         else:
-            if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?"):
+            if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
                 subprocess.call(['xdg-open', server_info_file])
     else:
         messagebox.showerror("Error", f"Failed to create server. Response: {response.text}")
@@ -1331,10 +1492,10 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                     def show_message():
                         message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{ssh_config_file}"
                         if os.name == 'nt':
-                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?"):
+                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
                                 os.startfile(ssh_config_file)
                         else:
-                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?"):
+                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
                                 subprocess.call(['xdg-open', ssh_config_file])
 
                     parent_window.after(0, show_message)
@@ -1616,6 +1777,23 @@ def create_app_window(api_key):
         if not specs_tree.selection():
             messagebox.showerror("Error", "Please select a server spec.")
             return
+        
+        # Get current values
+        server_name = server_name_entry.get()
+        firewall_name = selected_firewall.get()
+        ssh_key_name = selected_ssh.get()
+
+        # Auto-populate firewall name if left blank
+        if not firewall_name:
+            firewall_name = f"{server_name}-fw"
+            selected_firewall.set(firewall_name)
+            firewall_dropdown.set(firewall_name)
+
+        # Auto-populate SSH key name if left blank
+        if not ssh_key_name:
+            ssh_key_name = f"{server_name}-ssh"
+            selected_ssh.set(ssh_key_name)
+            ssh_dropdown.set(ssh_key_name)
 
         firewall_name = selected_firewall.get()
 
