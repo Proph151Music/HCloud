@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import re
 from tkinter import scrolledtext
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -1266,7 +1267,7 @@ def create_windows_shortcut_from_command(shortcut_path, command, description):
 
     shortcut.save()
 
-def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, node_username, network, parent_window, create_shortcuts_var):
+def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, node_username, network, parent_window, create_shortcuts_var, export_to_putty):
     ssh_passphrase = PasswordDialog.ask_password(parent_window, "SSH Passphrase", f"Enter passphrase for SSH key '{ssh_key}':")
     if not ssh_passphrase:
         status_text.insert(tk.END, "Installation canceled by the user.\n")
@@ -1301,7 +1302,7 @@ def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, 
     # Start the installation in a separate thread
     install_thread = threading.Thread(
         target=install_nodectl_thread, 
-        args=(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts)
+        args=(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts, export_to_putty)
     )
     install_thread.start()
 
@@ -1331,7 +1332,121 @@ def download_nodectl(client, nodectl_version, log_queue):
     log_queue.put("Failed to download nodectl after multiple attempts.\n")
     return False
 
-def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts):
+def check_winscp_and_putty_installed():
+    if os.name != 'nt':
+        return None
+    try:
+        # Check for WinSCP installation
+        winscp_check = subprocess.check_output(
+            'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\winscp3_is1" /v InstallLocation',
+            shell=True,
+            text=True
+        )
+        # Extract the installation path from the registry output
+        winscp_path_match = re.search(r"InstallLocation\s+REG_SZ\s+(.+)", winscp_check)
+        if winscp_path_match:
+            winscp_path = winscp_path_match.group(1).strip()
+        else:
+            winscp_path = None
+
+        # Check for PuTTY installation
+        putty_check = subprocess.check_output(
+            'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\SimonTatham\\PuTTY64"',
+            shell=True,
+            text=True
+        )
+
+        if winscp_path and "PuTTY64" in putty_check:
+            return winscp_path
+        else:
+            return None
+    except subprocess.CalledProcessError as e:
+        return None
+
+def get_winscp_path():
+    if os.name != 'nt':
+        return None
+
+    try:
+        winscp_check = subprocess.check_output(
+            'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\winscp3_is1" /v InstallLocation',
+            shell=True,
+            text=True
+        )
+        winscp_path_match = re.search(r"InstallLocation\s+REG_SZ\s+(.+)", winscp_check)
+        if winscp_path_match:
+            winscp_path = winscp_path_match.group(1).strip()
+            return winscp_path
+        else:
+            return None
+    except Exception as e:
+        logging.error(f"Failed to fetch WinSCP path: {e}")
+        return None
+
+def convert_key_to_ppk(private_key_path, winscp_path, passphrase):
+    if os.name != 'nt':
+        return private_key_path + '.ppk'
+
+    if winscp_path is None:
+        return None
+
+    ppk_path = private_key_path + '.ppk'
+    if not os.path.exists(ppk_path):  # Convert key if PPK doesn't already exist
+        # Convert all slashes to backslashes
+        private_key_path = private_key_path.replace('/', '\\')
+        ppk_path = ppk_path.replace('/', '\\')
+        winscp_command = f'"{winscp_path}\\WinSCP.com" /keygen "{private_key_path}" /output="{ppk_path}" -passphrase="{passphrase}"'
+        try:
+            subprocess.run(winscp_command, check=True, shell=True)
+        except subprocess.CalledProcessError:
+            return None
+    return ppk_path
+
+def export_server_details_to_putty(server_details, ppk_path, node_username):
+    if os.name != 'nt':
+        return False
+
+    session_name = server_details['server_name'].replace(" ", "_")
+    commands = [
+        f'reg add "HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\{session_name}" /v HostName /t REG_SZ /d {server_details["host_ip"]} /f',
+        f'reg add "HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\{session_name}" /v PortNumber /t REG_DWORD /d 22 /f',
+        f'reg add "HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\{session_name}" /v PublicKeyFile /t REG_SZ /d "{ppk_path}" /f',
+        f'reg add "HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\{session_name}" /v Protocol /t REG_SZ /d ssh /f',
+        f'reg add "HKEY_CURRENT_USER\\Software\\SimonTatham\\PuTTY\\Sessions\\{session_name}" /v UserName /t REG_SZ /d {node_username} /f'
+    ]
+    for command in commands:
+        try:
+            subprocess.run(command, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to add registry entry: {e}")
+            return False
+    return True
+
+def export_server_settings_to_putty(server_name, server_ip, ssh_key_name, ssh_passphrase, node_username, log_queue):
+    winscp_path = get_winscp_path()
+    if not winscp_path:
+        log_queue.put("WinSCP installation path not found. Export to PuTTY skipped.\n")
+        return
+
+    ssh_key_path = os.path.expanduser(f"~/.ssh/{ssh_key_name}")
+    ppk_path = convert_key_to_ppk(ssh_key_path, winscp_path, ssh_passphrase)
+    if not ppk_path:
+        log_queue.put("Failed to create the PPK file. Export to PuTTY skipped.\n")
+        return
+
+    server_details = {
+        'server_name': server_name,
+        'host_ip': server_ip,
+        'ssh_key_name': ssh_key_name
+    }
+
+    success = export_server_details_to_putty(server_details, ppk_path, node_username)
+    if success:
+        log_queue.put("Server details exported to PuTTY successfully.\n")
+    else:
+        log_queue.put("Failed to export server details to PuTTY.\n")
+
+def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts, export_to_putty):
     try:
         log_queue.put("Starting nodectl installation process...\n")
 
@@ -1380,8 +1495,8 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             log_queue.put("nodectl not found. Proceeding with installation...\n")
 
             # Get the latest nodectl version
-            # nodectl_version = get_latest_nodectl_version()
-            nodectl_version = "v2.15.0"
+            nodectl_version = get_latest_nodectl_version()
+            # nodectl_version = "v2.15.0"
             log_queue.put(f"Latest nodectl version: {nodectl_version}\n")
 
             # Download nodectl using the download_nodectl function
@@ -1437,7 +1552,8 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             if p12_file:
                 nodectl_install_command += f'--p12-migration-path "/root/{os.path.basename(p12_file)}" '
 
-            nodectl_install_command += '--confirm\' > /root/nodectl_install.log 2>&1'
+            nodectl_install_command += '--json-output --quiet\''
+            # nodectl_install_command += '--json-output --quiet\' > /root/nodectl_install.log 2>&1'
 
             log_queue.put(f"Executing nodectl install command in tmux...\n")
             stdin, stdout, stderr = client.exec_command(nodectl_install_command)
@@ -1488,6 +1604,12 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                         else:
                             create_unix_aliases(server_name, ssh_command, sftp_command)
 
+                    # Export to PuTTY if selected and on Windows
+                    if export_to_putty and os.name == 'nt':
+                        log_queue.put("Exporting server details to PuTTY...\n")
+                        # Call the function to export server details
+                        export_server_settings_to_putty(server_name, server_ip, ssh_key, ssh_passphrase, node_username, log_queue)
+                        
                     # Show messagebox with information and hyperlink to open the file
                     def show_message():
                         message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{ssh_config_file}"
@@ -1556,6 +1678,12 @@ def create_app_window(api_key):
     for local_key in local_ssh_keys:
         if local_key not in ssh_names_on_hetzner:
             ssh_keys.append({'name': f"Local: {local_key}", 'local_only': True})
+
+    # Define the BooleanVar for the checkbox conditionally
+    if os.name == 'nt':
+        export_to_putty_var = tk.BooleanVar()
+    else:
+        export_to_putty_var = None  # Placeholder for non-Windows systems
 
     app = tk.Toplevel()
     app.title("Hetzner Cloud Management Tool")
@@ -1891,26 +2019,58 @@ def create_app_window(api_key):
         text="Create SSH & SFTP Desktop Shortcuts" if os.name == 'nt' else "Create SSH & SFTP Aliases",
         variable=create_shortcuts_var
     )
-    create_shortcuts_checkbox.grid(row=5, column=1, padx=10, pady=5, sticky='w')
+    create_shortcuts_checkbox.grid(row=5, column=1, padx=0, pady=5, sticky='w')
+
+    if os.name == 'nt':
+        # Create the checkbox
+        export_to_putty_checkbox = tk.Checkbutton(
+            install_nodectl_tab,
+            text="Export server settings to PuTTY",
+            variable=export_to_putty_var
+        )
+        export_to_putty_checkbox.grid(row=5, column=2, padx=0, pady=5, sticky='w')
+
+    if os.name == 'nt':
+        def on_export_to_putty_var_changed(*args):
+            if export_to_putty_var.get():
+                winscp_path = check_winscp_and_putty_installed()
+                if not winscp_path:
+                    if messagebox.askyesno("Install Required Software", "PuTTY and/or WinSCP are not installed. Do you want to install them now?"):
+                        # Open download pages
+                        webbrowser.open("https://www.putty.org")
+                        webbrowser.open("https://winscp.net/eng/download.php")
+                        messagebox.showinfo("Installation", "Please install PuTTY and WinSCP, then click OK to continue.")
+                        # Re-check installations
+                        winscp_path = check_winscp_and_putty_installed()
+                        if not winscp_path:
+                            messagebox.showerror("Installation Failed", "PuTTY and/or WinSCP are still not installed. Export to PuTTY will be disabled.")
+                            export_to_putty_var.set(False)
+                    else:
+                        # User chose not to install
+                        export_to_putty_var.set(False)
+
+        # Attach the trace to the variable
+        export_to_putty_var.trace_add('write', on_export_to_putty_var_changed)
 
     install_button = tk.Button(
-        install_nodectl_tab, 
-        text="Install nodectl", 
-        command=lambda: start_install_nodectl(
-            api_key, 
-            selected_server_var.get(), 
-            selected_ssh.get(), 
-            status_text, 
-            p12_file_var.get(), 
-            node_username_var.get(), 
-            selected_network_var.get(),
-            app,
-            create_shortcuts_var
-        ), 
-        bg="dark blue", 
-        fg="white", 
-        width=20
-    )
+            install_nodectl_tab, 
+            text="Install nodectl", 
+            command=lambda: start_install_nodectl(
+                api_key, 
+                selected_server_var.get(), 
+                selected_ssh.get(), 
+                status_text, 
+                p12_file_var.get(), 
+                node_username_var.get(), 
+                selected_network_var.get(),
+                app,
+                create_shortcuts_var,
+                export_to_putty
+            ), 
+            bg="dark blue", 
+            fg="white", 
+            width=20
+        )
     install_button.grid(row=5, column=2, padx=10, pady=20, sticky='e')
     
     def format_size(size_gb):
