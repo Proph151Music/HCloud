@@ -13,6 +13,7 @@ import queue
 import threading
 import time
 import ipaddress
+import webbrowser
 
 root = None
 
