@@ -14,6 +14,7 @@ import threading
 import time
 import ipaddress
 import webbrowser
+from packaging import version as packaging_version
 
 root = None
 
@@ -1075,6 +1076,42 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
     else:
         messagebox.showerror("Error", f"Failed to create server. Response: {response.text}")
 
+def get_available_nodectl_versions():
+    url = "https://api.github.com/repos/StardustCollective/nodectl/releases"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        releases = response.json()
+        
+        # Extract version info and whether it's a prerelease
+        versions = []
+        for release in releases:
+            tag_name = release.get("tag_name")
+            is_prerelease = release.get("prerelease", False)
+            parsed_version = packaging_version.parse(tag_name.lstrip('v'))
+            versions.append({
+                "tag_name": tag_name,
+                "parsed_version": parsed_version,
+                "is_prerelease": is_prerelease
+            })
+        
+        # Sort versions based on the parsed version
+        versions.sort(key=lambda x: x["parsed_version"], reverse=True)
+        
+        # Get the latest stable version (non-prerelease)
+        latest_stable_version = next((v for v in versions if not v["is_prerelease"]), None)
+        if latest_stable_version:
+            latest_version_tag = latest_stable_version["tag_name"]
+        else:
+            latest_version_tag = versions[0]["tag_name"] if versions else "unknown version"
+        
+        # Return a list of version tags including pre-releases
+        version_tags = [v["tag_name"] for v in versions]
+        return version_tags, latest_version_tag
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to fetch nodectl versions: {e}")
+        return [], "unknown version"
+
 def get_latest_nodectl_version():
     url = "https://api.github.com/repos/StardustCollective/nodectl/releases/latest"
     try:
@@ -1105,7 +1142,11 @@ class PasswordDialog(tk.Toplevel):
 
         self.entry = tk.Entry(self, textvariable=self.password_var, show="*")
         self.entry.pack(padx=10, pady=(0, 10))
-        self.after(100, self.entry.focus_set)
+
+        self.deiconify()
+        self.lift()
+        self.entry.focus_set()
+        self.entry.icursor(tk.END)
 
         self.show_button = tk.Checkbutton(self, text="Show", variable=self.show_password, command=self.toggle_password)
         self.show_button.pack(pady=(0, 10))
@@ -1268,7 +1309,7 @@ def create_windows_shortcut_from_command(shortcut_path, command, description):
 
     shortcut.save()
 
-def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, node_username, network, parent_window, create_shortcuts_var, export_to_putty):
+def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, node_username, network, nodectl_version, parent_window, create_shortcuts_var, export_to_putty):
     ssh_passphrase = PasswordDialog.ask_password(parent_window, "SSH Passphrase", f"Enter passphrase for SSH key '{ssh_key}':")
     if not ssh_passphrase:
         status_text.insert(tk.END, "Installation canceled by the user.\n")
@@ -1279,10 +1320,43 @@ def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, 
         status_text.insert(tk.END, "Installation canceled by the user.\n")
         return
 
-    p12_passphrase = PasswordDialog.ask_password(parent_window, "P12 Passphrase", "Enter passphrase for the P12 file:")
-    if not p12_passphrase:
-        status_text.insert(tk.END, "Installation canceled by the user.\n")
-        return
+    p12_passphrase = None
+
+    # If a P12 file is provided, verify the P12 passphrase
+    if p12_file:
+        from cryptography.hazmat.primitives.serialization.pkcs12 import load_key_and_certificates
+        from cryptography.hazmat.backends import default_backend
+
+        while True:
+            p12_passphrase = PasswordDialog.ask_password(parent_window, "P12 Passphrase", "Enter passphrase for the P12 file:")
+            if not p12_passphrase:
+                status_text.insert(tk.END, "Installation canceled by the user.\n")
+                return
+
+            # Verify if the P12 passphrase is correct before proceeding
+            try:
+                with open(p12_file, 'rb') as f:
+                    private_key, certificate, additional_certs = load_key_and_certificates(
+                        f.read(),
+                        p12_passphrase.encode() if p12_passphrase else None,
+                        default_backend()
+                    )
+
+                if not private_key or not certificate:
+                    raise ValueError("P12 passphrase incorrect or failed to extract key and certificate.")
+                else:
+                    status_text.insert(tk.END, "P12 passphrase verified successfully.\n")
+                    break
+            except (ValueError, Exception) as e:
+                status_text.insert(tk.END, "Incorrect P12 passphrase. Please try again.\n")
+
+    # If no P12 file is provided, prompt the user to create a new passphrase
+    else:
+        p12_passphrase = PasswordDialog.ask_password(parent_window, "Create P12 Passphrase", "Enter a passphrase to secure the new P12 file:")
+        if not p12_passphrase:
+            status_text.insert(tk.END, "Installation canceled by the user.\n")
+            return
+        status_text.insert(tk.END, "P12 passphrase created successfully.\n")
 
     # Create a new Toplevel window for the progress log
     log_window = tk.Toplevel(parent_window)
@@ -1303,7 +1377,11 @@ def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, 
     # Start the installation in a separate thread
     install_thread = threading.Thread(
         target=install_nodectl_thread, 
-        args=(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts, export_to_putty)
+        args=(
+            api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, 
+            p12_passphrase, p12_file, node_username, network, nodectl_version, 
+            parent_window, create_shortcuts, export_to_putty
+        )
     )
     install_thread.start()
 
@@ -1317,13 +1395,13 @@ def download_nodectl(client, nodectl_version, log_queue):
     )
     max_retries = 3
     for attempt in range(max_retries):
-        log_queue.put(f"Attempting to download nodectl (Attempt {attempt + 1}/{max_retries})...\n")
+        log_queue.put(f"Attempting to download nodectl {nodectl_version} (Attempt {attempt + 1}/{max_retries})...\n")
         stdin, stdout, stderr = client.exec_command(install_command)
         stdout_output = stdout.read().decode('utf-8')
         stderr_output = stderr.read().decode('utf-8')
 
-        log_queue.put(f"Command stdout: {stdout_output}\n")
-        log_queue.put(f"Command stderr: {stderr_output}\n")
+        # log_queue.put(f"Command stdout: {stdout_output}\n")
+        # log_queue.put(f"Command stderr: {stderr_output}\n")
 
         if "502 Bad Gateway" not in stderr_output:
             return True
@@ -1447,7 +1525,7 @@ def export_server_settings_to_putty(server_name, server_ip, ssh_key_name, ssh_pa
     else:
         log_queue.put("Failed to export server details to PuTTY.\n")
 
-def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, parent_window, create_shortcuts, export_to_putty):
+def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, nodectl_version, parent_window, create_shortcuts, export_to_putty):
     try:
         log_queue.put("Starting nodectl installation process...\n")
 
@@ -1496,9 +1574,10 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             log_queue.put("nodectl not found. Proceeding with installation...\n")
 
             # Get the latest nodectl version
-            nodectl_version = get_latest_nodectl_version()
+            # nodectl_version = get_latest_nodectl_version()
             # nodectl_version = "v2.15.0"
-            log_queue.put(f"Latest nodectl version: {nodectl_version}\n")
+            # log_queue.put(f"Latest nodectl version: {nodectl_version}\n")
+            # log_queue.put(f"Using nodectl version: {nodectl_version}\n")
 
             # Download nodectl using the download_nodectl function
             if not download_nodectl(client, nodectl_version, log_queue):
@@ -1554,9 +1633,8 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 nodectl_install_command += f'--p12-migration-path "/root/{os.path.basename(p12_file)}" '
 
             nodectl_install_command += '--json-output --quiet\''
-            # nodectl_install_command += '--json-output --quiet\' > /root/nodectl_install.log 2>&1'
 
-            log_queue.put(f"Executing nodectl install command in tmux...\n")
+            log_queue.put(f"Executing nodectl install command...\n")
             stdin, stdout, stderr = client.exec_command(nodectl_install_command)
 
             # Tail the nodectl.log file and write it to the status box
@@ -1568,61 +1646,73 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 if 'exists' in stdout.read().decode('utf-8'):
                     log_queue.put("nodectl.log file detected. Tailing log...\n")
                     break
-                time.sleep(2) 
-
+                time.sleep(2)
+            
             # Tail the log file and write it to the status box
-            stdin, stdout, stderr = client.exec_command(f'tail -f {log_file_path}')
-            for line in iter(stdout.readline, ""):
-                log_queue.put(line)
-                if "INFO : Installation complete !!!" in line:
-                    log_queue.put("nodectl installation process completed.\n")
-                    # End the tmux session
-                    client.exec_command('tmux kill-session -t nodectl_install')
+            def tail_log():
+                local_client = paramiko.SSHClient()
+                local_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                local_client.connect(hostname=server_ip, username='root', pkey=private_key)
+                stdin, stdout, stderr = local_client.exec_command(f'tail -f {log_file_path}')
+                for line in iter(stdout.readline, ""):
+                    log_queue.put(line)
+                    if "INFO : Installation complete !!!" in line:
+                        log_queue.put("nodectl installation process completed.\n")
+                        # End the tmux session
+                        local_client.exec_command('tmux kill-session -t nodectl_install')
+                        break
+                local_client.close()
 
-                    # Update username to node_username
-                    username = node_username
+            tail_thread = threading.Thread(target=tail_log)
+            tail_thread.daemon = True
+            tail_thread.start()
+                
+            # Wait for the tail_thread to finish if necessary
+            tail_thread.join()
 
-                    # Get the SSH key path
-                    ssh_key_path = os.path.expanduser(f'~/.ssh/{ssh_key}')
+            # Update username to node_username
+            username = node_username
 
-                    # Construct the SSH and SFTP commands
-                    ssh_command = f'ssh -i "{ssh_key_path}" {username}@{server_ip}'
-                    sftp_command = f'sftp -i "{ssh_key_path}" {username}@{server_ip}'
+            # Get the SSH key path
+            ssh_key_path = os.path.expanduser(f'~/.ssh/{ssh_key}')
 
-                    # # Read firewall info from the existing server info file
-                    # firewall_name, firewall_rules = read_firewall_info_from_file(server_name)
-                    # if not firewall_name:
-                    #     firewall_name = ''
-                    # if not firewall_rules:
-                    #     firewall_rules = []
+            # Construct the SSH and SFTP commands
+            ssh_command = f'ssh -i "{ssh_key_path}" {username}@{server_ip}'
+            sftp_command = f'sftp -i "{ssh_key_path}" {username}@{server_ip}'
 
-                    # Save server information to file
-                    ssh_config_file = save_server_info(server_name, server_ip, ssh_key_path, username)
+            # # Read firewall info from the existing server info file
+            # firewall_name, firewall_rules = read_firewall_info_from_file(server_name)
+            # if not firewall_name:
+            #     firewall_name = ''
+            # if not firewall_rules:
+            #     firewall_rules = []
 
-                    if create_shortcuts:
-                        if os.name == 'nt':
-                            create_windows_shortcuts(server_name, ssh_command, sftp_command)
-                        else:
-                            create_unix_aliases(server_name, ssh_command, sftp_command)
+            # Save server information to file
+            ssh_config_file = save_server_info(server_name, server_ip, ssh_key_path, username)
 
-                    # Export to PuTTY if selected and on Windows
-                    if export_to_putty and os.name == 'nt':
-                        log_queue.put("Exporting server details to PuTTY...\n")
-                        # Call the function to export server details
-                        export_server_settings_to_putty(server_name, server_ip, ssh_key, ssh_passphrase, node_username, log_queue)
-                        
-                    # Show messagebox with information and hyperlink to open the file
-                    def show_message():
-                        message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{ssh_config_file}"
-                        if os.name == 'nt':
-                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
-                                os.startfile(ssh_config_file)
-                        else:
-                            if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
-                                subprocess.call(['xdg-open', ssh_config_file])
+            if create_shortcuts:
+                if os.name == 'nt':
+                    create_windows_shortcuts(server_name, ssh_command, sftp_command)
+                else:
+                    create_unix_aliases(server_name, ssh_command, sftp_command)
 
-                    parent_window.after(0, show_message)
-                    break
+            # Export to PuTTY if selected and on Windows
+            if export_to_putty and os.name == 'nt':
+                log_queue.put("Exporting server details to PuTTY...\n")
+                # Call the function to export server details
+                export_server_settings_to_putty(server_name, server_ip, ssh_key, ssh_passphrase, node_username, log_queue)
+                
+            # Show messagebox with information and hyperlink to open the file
+            def show_message():
+                message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{ssh_config_file}"
+                if os.name == 'nt':
+                    if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
+                        os.startfile(ssh_config_file)
+                else:
+                    if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
+                        subprocess.call(['xdg-open', ssh_config_file])
+
+            parent_window.after(0, show_message)
 
         except Exception as e:
             log_queue.put(f"SSH operation failed: {str(e)}\n")
@@ -1633,21 +1723,18 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
         log_queue.put(f"Exception during nodectl installation: {str(e)}\n")
 
 def process_log_queue(status_text, log_queue):
-    def process_logs():
+    def check_log_queue():
         try:
             while True:
                 message = log_queue.get_nowait()
-                status_text.after(0, lambda: status_text.insert(tk.END, message))
-                status_text.after(0, lambda: status_text.see(tk.END))
-
-                if "nodectl installation completed successfully." in message or "Error:" in message:
-                    break
+                status_text.insert(tk.END, message)
+                status_text.see(tk.END)
         except queue.Empty:
-            status_text.after(100, process_log_queue, status_text, log_queue)
+            pass
+        # Schedule the next check
+        status_text.after(100, check_log_queue)
     
-    thread = threading.Thread(target=process_logs)
-    thread.daemon = True
-    thread.start()
+    check_log_queue()
 
 # Function to export to PuTTY
 def export_to_putty(api_key, server_name):
@@ -1688,10 +1775,10 @@ def create_app_window(api_key):
 
     app = tk.Toplevel()
     app.title("Hetzner Cloud Management Tool")
-    app.geometry("800x525")
+    app.geometry("815x535")
 
     # Set minimum window size
-    app.minsize(800, 525)
+    app.minsize(815, 535)
 
     menu_bar = tk.Menu(app)
     app.config(menu=menu_bar)
@@ -1974,53 +2061,109 @@ def create_app_window(api_key):
     tk.Label(install_nodectl_tab, text="Select Server:").grid(row=0, column=0, padx=10, pady=10, sticky='w')
     selected_server_var = tk.StringVar()
 
-    server_dropdown = ttk.Combobox(install_nodectl_tab, textvariable=selected_server_var, values=[srv['name'] for srv in servers], width=30)
+    server_dropdown = ttk.Combobox(
+        install_nodectl_tab, 
+        textvariable=selected_server_var, 
+        values=[srv['name'] for srv in servers], 
+        width=30
+    )
     server_dropdown.grid(row=0, column=1, padx=10, pady=10, sticky='w')
 
-    selected_server_var.trace("w", lambda *args: on_server_select(selected_server_var, status_text, api_key, *args))
+    selected_server_var.trace(
+        "w", 
+        lambda *args: on_server_select(selected_server_var, status_text, api_key, *args)
+    )
 
-    dropdown_frame = tk.Frame(install_nodectl_tab)
-    dropdown_frame.grid(row=0, column=1, columnspan=2, padx=10, pady=10, sticky='w')
-
-    server_dropdown = ttk.Combobox(dropdown_frame, textvariable=selected_server_var, values=[srv['name'] for srv in servers], width=30)
-    server_dropdown.pack(side=tk.LEFT, padx=(0, 10))
-
-    tk.Label(dropdown_frame, text="Select SSH Key:").pack(side=tk.LEFT)
-    ssh_dropdown2 = ttk.Combobox(dropdown_frame, textvariable=selected_ssh, values=[ssh['name'] for ssh in ssh_keys], width=20)
+    tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=10, pady=10, sticky='e')
+    ssh_dropdown2 = ttk.Combobox(
+        install_nodectl_tab, 
+        textvariable=selected_ssh, 
+        values=[ssh['name'] for ssh in ssh_keys], 
+        width=30
+    )
     ssh_dropdown2.set(config.get("ssh_key", ""))
-    ssh_dropdown2.pack(side=tk.LEFT)
+    ssh_dropdown2.grid(row=0, column=2, padx=10, pady=10, sticky='e')
 
     selected_ssh.trace("w", lambda *args: ssh_dropdown2.set(selected_ssh.get()))
 
     tk.Label(install_nodectl_tab, text="Select Network:").grid(row=1, column=0, padx=10, pady=10, sticky='w')
     selected_network_var = tk.StringVar(value="")
-    network_dropdown = ttk.Combobox(install_nodectl_tab, textvariable=selected_network_var, values=["mainnet", "integrationnet", "testnet"], width=30)
+    network_dropdown = ttk.Combobox(
+        install_nodectl_tab, 
+        textvariable=selected_network_var, 
+        values=["mainnet", "integrationnet", "testnet"], 
+        width=30
+    )
     network_dropdown.grid(row=1, column=1, padx=10, pady=10, sticky='w')
+
+    # Fetch available nodectl versions
+    nodectl_versions, latest_nodectl_version = get_available_nodectl_versions()
+
+    # Add a label and combobox for selecting the nodectl version
+    tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=10, pady=10, sticky='e')
+    selected_nodectl_version_var = tk.StringVar(value=latest_nodectl_version)
+    nodectl_version_dropdown = ttk.Combobox(
+        install_nodectl_tab,
+        textvariable=selected_nodectl_version_var,
+        values=nodectl_versions,
+        width=30
+    )
+    nodectl_version_dropdown.grid(row=1, column=2, padx=10, pady=10, sticky='e')
 
     tk.Label(install_nodectl_tab, text="Node Username:").grid(row=2, column=0, padx=10, pady=10, sticky='w')
     node_username_var = tk.StringVar(value="nodeadmin")
-    username_entry = tk.Entry(install_nodectl_tab, textvariable=node_username_var, width=33)
+    username_entry = tk.Entry(
+        install_nodectl_tab, 
+        textvariable=node_username_var, 
+        width=33
+    )
     username_entry.grid(row=2, column=1, padx=10, pady=10, sticky='w')
 
-    status_text = tk.Text(install_nodectl_tab, wrap="word", height=15, width=75)
-    status_text.grid(row=3, column=1, columnspan=2, padx=10, pady=10)
+    # Create a frame to contain the status_text and scrollbars
+    status_frame = tk.Frame(install_nodectl_tab)
+    status_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
-    tk.Label(install_nodectl_tab, text="Import P12 File (Optional):").grid(row=4, column=1, padx=40, pady=10, sticky='w')
+    # Create the Text widget inside the frame
+    status_text = tk.Text(
+        status_frame, 
+        wrap='none',   # Disable word wrapping to enable horizontal scrolling
+        height=14, 
+        width=97
+    )
+    status_text.grid(row=0, column=0, sticky='nsew')
+
+    # Create vertical scrollbar and attach it to the Text widget
+    status_v_scrollbar = tk.Scrollbar(status_frame, orient='vertical', command=status_text.yview)
+    status_v_scrollbar.grid(row=0, column=1, sticky='ns')
+
+    # Create horizontal scrollbar and attach it to the Text widget
+    status_h_scrollbar = tk.Scrollbar(status_frame, orient='horizontal', command=status_text.xview)
+    status_h_scrollbar.grid(row=1, column=0, sticky='ew')
+
+    # Configure the Text widget to use the scrollbars
+    status_text.configure(yscrollcommand=status_v_scrollbar.set, xscrollcommand=status_h_scrollbar.set)
+
+    # Ensure the frame and its widgets resize properly
+    status_frame.grid_rowconfigure(0, weight=1)
+    status_frame.grid_columnconfigure(0, weight=1)
+
+
+    tk.Label(install_nodectl_tab, text="Import P12 File (Optional):").grid(row=4, column=0, padx=10, pady=10, sticky='w')
 
     p12_file_var = tk.StringVar()
     p12_file_entry = tk.Entry(install_nodectl_tab, textvariable=p12_file_var, width=50)
-    p12_file_entry.grid(row=4, column=2, padx=(0, 50), pady=10, sticky='w')
+    p12_file_entry.grid(row=4, column=1, padx=10, pady=10, sticky='w')
 
     p12_file_button = tk.Button(install_nodectl_tab, text="Browse", 
                                 command=lambda: p12_file_var.set(filedialog.askopenfilename(filetypes=[("P12 Files", "*.p12"), ("All Files", "*.*")])))
-    p12_file_button.grid(row=4, column=2, padx=10, pady=10, sticky='e')
+    p12_file_button.grid(row=4, column=2, padx=0, pady=10, sticky='w')
 
     create_shortcuts_checkbox = tk.Checkbutton(
         install_nodectl_tab,
         text="Create SSH & SFTP Desktop Shortcuts" if os.name == 'nt' else "Create SSH & SFTP Aliases",
         variable=create_shortcuts_var
     )
-    create_shortcuts_checkbox.grid(row=5, column=1, padx=0, pady=5, sticky='w')
+    create_shortcuts_checkbox.grid(row=5, column=1, padx=50, pady=0, sticky='w')
 
     if os.name == 'nt':
         # Create the checkbox
@@ -2029,7 +2172,7 @@ def create_app_window(api_key):
             text="Export server settings to PuTTY",
             variable=export_to_putty_var
         )
-        export_to_putty_checkbox.grid(row=5, column=2, padx=0, pady=5, sticky='w')
+        export_to_putty_checkbox.grid(row=6, column=1, padx=50, pady=0, sticky='w')
 
     if os.name == 'nt':
         def on_export_to_putty_var_changed(*args):
@@ -2064,6 +2207,7 @@ def create_app_window(api_key):
                 p12_file_var.get(), 
                 node_username_var.get(), 
                 selected_network_var.get(),
+                selected_nodectl_version_var.get(),
                 app,
                 create_shortcuts_var,
                 export_to_putty
@@ -2072,7 +2216,8 @@ def create_app_window(api_key):
             fg="white", 
             width=20
         )
-    install_button.grid(row=5, column=2, padx=10, pady=20, sticky='e')
+    # create_server_button.grid(row=10, column=1, columnspan=3, padx=15, pady=10, sticky='se')
+    install_button.grid(row=6, column=1, columnspan=3, padx=25, pady=10, sticky='se')
     
     def format_size(size_gb):
         if size_gb >= 1024:
