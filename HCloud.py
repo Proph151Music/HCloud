@@ -279,6 +279,24 @@ def load_config(config_file='config.txt'):
                     config[key.strip()] = value.strip()
     return config
 
+def read_ssh_key_path(server_name):
+    servers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SERVERS', server_name)
+    ssh_config_file_path = os.path.join(servers_dir, f"{server_name}_ssh_config.txt")
+
+    if not os.path.exists(ssh_config_file_path):
+        print(f"SSH config file not found: {ssh_config_file_path}")
+        return ''
+
+    with open(ssh_config_file_path, 'r') as f:
+        lines = f.readlines()
+
+    for line in lines:
+        if 'IdentityFile' in line:
+            ssh_key_path = line.strip().split(' ', 1)[1].strip()
+            return ssh_key_path
+
+    return ''
+
 # Function to fetch firewalls, server types, and locations data
 def fetch_data(api_key):
     headers = {'Authorization': f'Bearer {api_key}'}
@@ -313,7 +331,7 @@ def on_server_select(selected_server_var, status_text, api_key, *args):
             status_text.delete('1.0', tk.END)
             status_text.insert(tk.END, f"Server: {server_name}\n")
             status_text.insert(tk.END, f"Host IP: {server_details['host_ip']}\n")
-            status_text.insert(tk.END, f"SSH Key(s): {', '.join(server_details['ssh_keys'])}\n")
+            status_text.insert(tk.END, f"SSH Key Path: {server_details['ssh_key_path']}\n")
             status_text.insert(tk.END, f"Firewall(s): {', '.join(server_details['firewalls'])}\n")
             status_text.insert(tk.END, f"Server Type: {server_details['server_type']}\n")
             status_text.insert(tk.END, f"Cores: {server_details['cores']}\n")
@@ -325,7 +343,7 @@ def on_server_select(selected_server_var, status_text, api_key, *args):
 def fetch_server_details(api_key, server_name):
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
     
-    # Fetch all servers
+    # Fetch all servers to find the server ID
     servers_response = requests.get('https://api.hetzner.cloud/v1/servers', headers=headers)
     if servers_response.status_code != 200:
         print(f"Failed to fetch servers: {servers_response.status_code}")
@@ -333,26 +351,51 @@ def fetch_server_details(api_key, server_name):
 
     servers = servers_response.json().get('servers', [])
 
-    # Find the server by name
-    server = next((srv for srv in servers if srv['name'].lower() == server_name.lower()), None)
-    if not server:
+    # Find the server by name to get its ID
+    server_summary = next((srv for srv in servers if srv['name'].lower() == server_name.lower()), None)
+    if not server_summary:
         print(f"Server with name {server_name} not found.")
         return None
+
+    server_id = server_summary['id']
+
+    # Fetch the detailed server information using GET /servers/{id}?include=firewalls
+    server_response = requests.get(f'https://api.hetzner.cloud/v1/servers/{server_id}?include=firewalls', headers=headers)
+    if server_response.status_code != 200:
+        print(f"Failed to fetch server details: {server_response.status_code}")
+        return None
+
+    server = server_response.json().get('server', {})
     
     # Fetch SSH keys
-    ssh_keys_response = requests.get('https://api.hetzner.cloud/v1/ssh_keys', headers=headers)
-    ssh_keys = ssh_keys_response.json().get('ssh_keys', []) if ssh_keys_response.status_code == 200 else []
+    ## ssh_keys_response = requests.get('https://api.hetzner.cloud/v1/ssh_keys', headers=headers)
+    ## ssh_keys = ssh_keys_response.json().get('ssh_keys', []) if ssh_keys_response.status_code == 200 else []
     
     # Matching SSH keys based on expected label format
-    expected_ssh_label = f"{server_name.lower().replace(' ', '-')}-ssh"
-    matching_ssh_keys = [key['name'] for key in ssh_keys if key['name'].lower() == expected_ssh_label]
+    ## expected_ssh_label = f"{server_name.lower().replace(' ', '-')}-ssh"
+    ## matching_ssh_keys = [key['name'] for key in ssh_keys if key['name'].lower() == expected_ssh_label]
 
-    # Fetch firewall IDs directly from the server object
+    # Fetch SSH key path from saved server info
+    ssh_key_path = read_ssh_key_path(server_name)
+    ## ssh_key_name = os.path.basename(ssh_key_path) if ssh_key_path else ''
+
+    # Fetch firewall IDs directly from the detailed server object
     firewall_ids = []
+    for fw in server.get('private_net', []):
+        for firewall in fw.get('firewalls', []):
+            if firewall and 'id' in firewall:
+                firewall_ids.append(firewall['id'])
+    for fw in server.get('public_net', {}).get('firewalls', []):
+        if fw and 'id' in fw:
+            firewall_ids.append(fw['id'])
+    # Also check the 'firewalls' key at the root level
     for fw in server.get('firewalls', []):
         firewall = fw.get('firewall')
         if firewall and 'id' in firewall:
             firewall_ids.append(firewall['id'])
+
+    # Remove duplicates
+    firewall_ids = list(set(firewall_ids))
 
     firewall_names = []
     if firewall_ids:
@@ -363,7 +406,8 @@ def fetch_server_details(api_key, server_name):
     # Return collected data
     return {
         'host_ip': server['public_net']['ipv4']['ip'],
-        'ssh_keys': matching_ssh_keys,
+        'ssh_key_path': ssh_key_path,
+        ## 'ssh_key_name': ssh_key_name,
         'firewalls': firewall_names,
         'server_type': server['server_type']['name'],
         'cores': server['server_type']['cores'],
@@ -1632,7 +1676,7 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             if p12_file:
                 nodectl_install_command += f'--p12-migration-path "/root/{os.path.basename(p12_file)}" '
 
-            nodectl_install_command += '--json-output --quiet\''
+            nodectl_install_command += '--quiet --json_output\''
 
             log_queue.put(f"Executing nodectl install command...\n")
             stdin, stdout, stderr = client.exec_command(nodectl_install_command)
