@@ -219,6 +219,8 @@ def save_server_info(server_name, server_ip, ssh_key_path, username):
 
     # Collect the SSH config information
     ssh_config_lines = [
+        f"### This ssh_config file can also be used to import this server's settings into Termius. ###",
+        "",
         f"Host {server_name}",
         f"    HostName {server_ip}",
         f"    User {username}",
@@ -1439,19 +1441,17 @@ def download_nodectl(client, nodectl_version, log_queue):
     )
     max_retries = 3
     for attempt in range(max_retries):
-        log_queue.put(f"Attempting to download nodectl {nodectl_version} (Attempt {attempt + 1}/{max_retries})...\n")
+        # Attempt download
         stdin, stdout, stderr = client.exec_command(install_command)
         stdout_output = stdout.read().decode('utf-8')
         stderr_output = stderr.read().decode('utf-8')
 
-        # log_queue.put(f"Command stdout: {stdout_output}\n")
-        # log_queue.put(f"Command stderr: {stderr_output}\n")
-
+        # Check for 502 Bad Gateway error and retry
         if "502 Bad Gateway" not in stderr_output:
             return True
-        log_queue.put(f"502 Bad Gateway error encountered. Retrying in 10 seconds...\n")
         time.sleep(10)
     
+    # Only log a final failure message
     log_queue.put("Failed to download nodectl after multiple attempts.\n")
     return False
 
@@ -1571,7 +1571,9 @@ def export_server_settings_to_putty(server_name, server_ip, ssh_key_name, ssh_pa
 
 def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphrase, node_userpass, p12_passphrase, p12_file, node_username, network, nodectl_version, parent_window, create_shortcuts, export_to_putty):
     try:
-        log_queue.put("Starting nodectl installation process...\n")
+        log_queue.put("\nStarting nodectl installation process...\n\n")
+
+        nodeid = None
 
         # Fetch server details
         log_queue.put(f"Fetching details for server '{server_name}'...\n")
@@ -1605,9 +1607,9 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             # Check if tmux is installed
             stdin, stdout, stderr = client.exec_command('command -v tmux')
             if not stdout.read().decode('utf-8').strip():
-                log_queue.put("tmux not found. Installing tmux...\n")
+                log_queue.put("\ntmux not found. Installing tmux...\n")
                 client.exec_command('sudo apt-get update && sudo apt-get install -y tmux')
-                log_queue.put("tmux installed successfully.\n")
+                log_queue.put("tmux installed successfully.\n\n")
 
             # Check if nodectl is already installed
             stdin, stdout, stderr = client.exec_command('test -f /usr/local/bin/nodectl && echo found')
@@ -1665,21 +1667,40 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
 
             # Construct the nodectl install command within tmux
             nodectl_install_command = (
-                f'tmux new-session -d -s nodectl_install \'tmux resize-window -t nodectl_install -x 120 -y 40; '
-                f'sudo /usr/local/bin/nodectl install --quick-install '
-                f'--user "{node_username}" '
-                f'--user-password "{node_userpass_escaped}" '
-                f'--p12-passphrase "{p12_passphrase_escaped}" '
-                f'--cluster-config "{network}" '
+                f"tmux new-session -d -s nodectl_install \"tmux resize-window -t nodectl_install -x 120 -y 40; "
+                f"sudo /usr/local/bin/nodectl install --quick-install "
+                f"--user '{node_username}' "
+                f"--user-password '{node_userpass_escaped}' "
+                f"--p12-passphrase '{p12_passphrase_escaped}' "
+                f"--cluster-config '{network}' "
             )
 
             if p12_file:
-                nodectl_install_command += f'--p12-migration-path "/root/{os.path.basename(p12_file)}" '
+                nodectl_install_command += f"--p12-migration-path '/root/{os.path.basename(p12_file)}' "
 
-            nodectl_install_command += '--quiet --json_output\''
+            # Determine nprofile based on network
+            if network in ["mainnet", "testnet"]:
+                nprofile = "dag-l0"
+            elif network == "integrationnet":
+                nprofile = "intnet-l0"
+            else:
+                nprofile = "error-l0"
+            
+            nodectl_install_command += f" --confirm --json-output; sudo nodectl nodeid -p {nprofile}\""
 
-            log_queue.put(f"Executing nodectl install command...\n")
+            log_queue.put(f"\nExecuting nodectl install...\n")
+            ## log_queue.put(f"\n{nodectl_install_command}\n\n")
             stdin, stdout, stderr = client.exec_command(nodectl_install_command)
+
+            # Capture and log output
+            stdout_output = stdout.read().decode('utf-8')
+            stderr_output = stderr.read().decode('utf-8')
+
+            if stdout_output:
+                log_queue.put(f"STDOUT:\n{stdout_output}\n")
+
+            if stderr_output:
+                log_queue.put(f"STDERR:\n{stderr_output}\n")
 
             # Tail the nodectl.log file and write it to the status box
             log_file_path = '/var/tessellation/nodectl/nodectl.log'
@@ -1688,23 +1709,39 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             while True:
                 stdin, stdout, stderr = client.exec_command(f'test -f {log_file_path} && echo exists')
                 if 'exists' in stdout.read().decode('utf-8'):
-                    log_queue.put("nodectl.log file detected. Tailing log...\n")
+                    log_queue.put("nodectl.log file detected. Tailing log...\n\n")
                     break
                 time.sleep(2)
             
             # Tail the log file and write it to the status box
             def tail_log():
+                nonlocal nodeid
                 local_client = paramiko.SSHClient()
                 local_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 local_client.connect(hostname=server_ip, username='root', pkey=private_key)
                 stdin, stdout, stderr = local_client.exec_command(f'tail -f {log_file_path}')
+
+                installation_complete = False
+
                 for line in iter(stdout.readline, ""):
                     log_queue.put(line)
+
+                    # Check if installation complete message is found
                     if "INFO : Installation complete !!!" in line:
-                        log_queue.put("nodectl installation process completed.\n")
-                        # End the tmux session
-                        local_client.exec_command('tmux kill-session -t nodectl_install')
+                        log_queue.put("\nnodectl installation process completed.\n\n")
+                        installation_complete = True
+                    
+                    # Check if the line with "link key found," is found and extract node ID
+                    elif "link key found," in line:
+                        nodeid = line.split()[-1].strip("[]")
+                        log_queue.put(f"\nNode ID found: {nodeid}\n\n")
+
+                    # If both installation completion and node ID have been found, break the loop
+                    if installation_complete and nodeid:
                         break
+
+                # End the tmux session
+                local_client.exec_command('tmux kill-session -t nodectl_install')
                 local_client.close()
 
             tail_thread = threading.Thread(target=tail_log)
@@ -1736,8 +1773,10 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
 
             if create_shortcuts:
                 if os.name == 'nt':
+                    log_queue.put("Creating Desktop Shortcuts...\n")
                     create_windows_shortcuts(server_name, ssh_command, sftp_command)
                 else:
+                    log_queue.put("Creating Desktop Shortcuts...\n")
                     create_unix_aliases(server_name, ssh_command, sftp_command)
 
             # Export to PuTTY if selected and on Windows
@@ -1745,18 +1784,65 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 log_queue.put("Exporting server details to PuTTY...\n")
                 # Call the function to export server details
                 export_server_settings_to_putty(server_name, server_ip, ssh_key, ssh_passphrase, node_username, log_queue)
-                
+
             # Show messagebox with information and hyperlink to open the file
             def show_message():
-                message_text = f"nodectl has completed installing successfully on server '{server_name}'.\n\nServer information updated in:\n{ssh_config_file}"
-                if os.name == 'nt':
-                    if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
-                        os.startfile(ssh_config_file)
-                else:
-                    if messagebox.askyesno("Installation Complete", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
-                        subprocess.call(['xdg-open', ssh_config_file])
+                # Create a custom dialog window
+                message_window = tk.Toplevel(parent_window)
+                message_window.title("Installation Complete")
 
-            parent_window.after(0, show_message)
+                # Main message label
+                main_message = f"nodectl has completed installing successfully on server '{server_name}'.\n\n"
+                main_message += f"Server information updated in:\n{ssh_config_file}\n\n"
+                if nodeid:
+                    main_message += "Node ID:\nClick inside the box below to copy."
+
+                message_label = tk.Label(message_window, text=main_message, justify="left", wraplength=400)
+                message_label.pack(pady=10)
+
+                # Node ID entry box for copying
+                if nodeid:
+                    nodeid_entry = tk.Entry(message_window, width=70, font=("Arial", 12))
+                    nodeid_entry.insert(0, nodeid)
+                    nodeid_entry.config(state="readonly")  # Make it read-only
+                    nodeid_entry.pack(pady=10)
+
+                    # Copy on click event
+                    def copy_nodeid(event):
+                        parent_window.clipboard_clear()
+                        parent_window.clipboard_append(nodeid)
+                        parent_window.update()
+                        tk.messagebox.showinfo("Copied", "Node ID has been copied to the clipboard.")
+
+                    # Bind click event to copy the Node ID
+                    nodeid_entry.bind("<Button-1>", copy_nodeid)
+
+                # Buttons frame
+                buttons_frame = tk.Frame(message_window)
+                buttons_frame.pack(pady=20)
+
+                # Yes button to open the server info file
+                def open_server_info():
+                    if os.name == 'nt':
+                        os.startfile(ssh_config_file)
+                    else:
+                        subprocess.call(['xdg-open', ssh_config_file])
+                    message_window.destroy()
+
+                yes_button = tk.Button(buttons_frame, text="Open Server Config File", command=open_server_info)
+                yes_button.pack(side="left", padx=10)
+
+                # No/Close button
+                close_button = tk.Button(buttons_frame, text="Close", command=message_window.destroy)
+                close_button.pack(side="right", padx=10)
+
+                # Center the window
+                message_window.geometry("+%d+%d" % (parent_window.winfo_rootx() + 50, parent_window.winfo_rooty() + 50))
+                message_window.transient(parent_window)
+                message_window.grab_set()
+                parent_window.wait_window(message_window)
+
+            show_message()
 
         except Exception as e:
             log_queue.put(f"SSH operation failed: {str(e)}\n")
