@@ -136,7 +136,7 @@ def install_required_packages_in_thread(log_widget=None, completion_callback=Non
 
 def install_required_packages(log_widget=None):
     global requests, paramiko
-    required_packages = ["requests", "paramiko>=3.0.0", "cryptography>=39.0.0"]
+    required_packages = ["requests", "paramiko>=3.0.0", "cryptography>=39.0.0", "packaging"]
     for package in required_packages:
         package_name = package.split('>=')[0]
         logging.debug(f"Checking if package '{package_name}' is installed...")
