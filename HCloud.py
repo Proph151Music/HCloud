@@ -14,7 +14,7 @@ import threading
 import time
 import ipaddress
 import webbrowser
-from packaging import version as packaging_version
+import shlex
 
 root = None
 
@@ -1123,6 +1123,7 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
         messagebox.showerror("Error", f"Failed to create server. Response: {response.text}")
 
 def get_available_nodectl_versions():
+    from packaging import version as packaging_version
     url = "https://api.github.com/repos/StardustCollective/nodectl/releases"
     try:
         response = requests.get(url)
