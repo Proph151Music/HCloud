@@ -1687,7 +1687,7 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             else:
                 nprofile = "error-l0"
             
-            nodectl_install_command += f" --confirm --json-output; sudo nodectl nodeid -p {nprofile}\""
+            nodectl_install_command += f"--confirm; sudo nodectl nodeid -p {nprofile}\""
 
             log_queue.put(f"\nExecuting nodectl install...\n")
             ## log_queue.put(f"\n{nodectl_install_command}\n\n")
