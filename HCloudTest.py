@@ -2328,6 +2328,11 @@ def create_app_window(api_key):
     )
     username_entry.grid(row=2, column=1, padx=10, pady=10, sticky='w')
 
+    install_nodectl_tab.grid_columnconfigure(0, weight=1)
+    install_nodectl_tab.grid_columnconfigure(1, weight=1)
+    install_nodectl_tab.grid_columnconfigure(2, weight=1)
+    install_nodectl_tab.grid_columnconfigure(3, weight=1)
+
     # Create a frame to contain the status_text and scrollbars
     status_frame = tk.Frame(install_nodectl_tab)
     status_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
@@ -2335,9 +2340,8 @@ def create_app_window(api_key):
     # Create the Text widget inside the frame
     status_text = tk.Text(
         status_frame, 
-        wrap='none',   # Disable word wrapping to enable horizontal scrolling
-        height=13, 
-        width=98
+        wrap='none',
+        height=13 
     )
     status_text.grid(row=0, column=0, sticky='nsew')
 
@@ -2355,7 +2359,6 @@ def create_app_window(api_key):
     # Ensure the frame and its widgets resize properly
     status_frame.grid_rowconfigure(0, weight=1)
     status_frame.grid_columnconfigure(0, weight=1)
-
 
     tk.Label(install_nodectl_tab, text="Import P12 File (Optional):").grid(row=4, column=0, padx=10, pady=10, sticky='w')
 
@@ -2424,7 +2427,7 @@ def create_app_window(api_key):
         style="InstallNodectl.TButton",
         width=20,
     )
-    install_button.grid(row=6, column=1, columnspan=3, padx=25, pady=10, sticky='se')
+    install_button.grid(row=6, column=0, columnspan=4, padx=25, pady=10, sticky='se')
     
     def format_size(size_gb):
         if size_gb >= 1024:
