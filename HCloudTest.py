@@ -2485,35 +2485,41 @@ def prompt_api_key():
     root.title("API Key Input")
     root.geometry("300x150")
 
-    ttk.Label(root, text="Enter your API key:").pack(pady=10)
+    # Label with font specification
+    ttk.Label(root, text="Enter your API key:", font=("Helvetica", 12)).pack(pady=10)
 
-    api_key_entry = ttk.Entry(root, show="*")
+    # Entry box for API key
+    api_key_entry = ttk.Entry(root, width=30)  # Set explicit width
     api_key_entry.pack(pady=5)
-
     api_key_entry.focus_set()
 
     def on_submit():
         api_key = api_key_entry.get()
 
+        # Check for valid API key
         if len(api_key) == 64 and api_key.isalnum():
             global log_window
             log_window = tk.Toplevel(root)
             log_window.title("Dependency Installation Progress")
             log_window.geometry("600x400")
 
+            # Scrolled text for logs
             log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD, height=20, width=70)
             log_text.pack(pady=10, padx=10)
 
+            # Run installation with callback
             install_required_packages_in_thread(
                 log_text, 
-                lambda: on_installation_complete(root, api_key) if validate_api_key(api_key) else tk.messagebox.showwarning("Invalid API Key", "The API key provided is invalid or does not have the required permissions.")
+                lambda: on_installation_complete(root, api_key) if validate_api_key(api_key) else messagebox.showwarning("Invalid API Key", "The API key provided is invalid or does not have the required permissions.")
             )
         else:
-            tk.messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
+            messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
 
+    # Submit button with font specification
     submit_button = ttk.Button(root, text="Submit", command=on_submit)
     submit_button.pack(pady=20)
 
+    # Bind Enter key to submit
     root.bind('<Return>', lambda event: on_submit())
 
     root.mainloop()
