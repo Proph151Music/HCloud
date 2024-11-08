@@ -1,8 +1,8 @@
 import os
 import subprocess
 import sys
-import re
 import platform
+import re
 from tkinter import scrolledtext
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -18,6 +18,44 @@ import webbrowser
 import shlex
 
 root = None
+
+# Ensure Python 3.13+ on macOS
+def ensure_python_version(log_widget=None):
+    if platform.system() == "Darwin":  # macOS check
+        python_version_output = subprocess.run(
+            ["python3", "--version"],
+            capture_output=True,
+            text=True
+        ).stdout.strip()
+        current_version = tuple(map(int, python_version_output.split()[1].split(".")))
+
+        if current_version < (3, 13):  # Check if Python version is lower than 3.13
+            if log_widget:
+                log_widget.insert(tk.END, "Upgrading Python to 3.13+ with Homebrew...\n")
+                log_widget.see(tk.END)
+
+            # Install/upgrade Python using Homebrew
+            try:
+                subprocess.check_call(["brew", "install", "python@3.13"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # Adjust PATH to use the newly installed Python
+                brew_path = "/usr/local/bin" if os.path.exists("/usr/local/bin") else "/opt/homebrew/bin"
+                os.environ["PATH"] = f"{brew_path}:{os.environ['PATH']}"
+                
+                # Set interpreter path to Python 3.13
+                new_python_path = subprocess.check_output(["which", "python3.13"]).strip().decode()
+                os.execv(new_python_path, ["python3.13"] + sys.argv)
+
+            except subprocess.CalledProcessError as e:
+                if log_widget:
+                    log_widget.insert(tk.END, f"Failed to upgrade Python: {e}\n")
+                    log_widget.see(tk.END)
+                sys.exit(1)
+
+        else:
+            print(f"Python version is sufficient: {python_version_output}")
+
+ensure_python_version()
 
 if os.environ.get("RESTARTED") == "1":
     # Remove the environment variable to prevent infinite restarts
@@ -135,28 +173,6 @@ def install_required_packages_in_thread(log_widget=None, completion_callback=Non
     thread.daemon = True
     thread.start()
 
-def install_tk(log_widget=None):
-    if platform.system() == "Darwin":  # macOS
-        brew_installed = subprocess.call(["which", "brew"], stdout=subprocess.DEVNULL) == 0
-        if not brew_installed:
-            print("Homebrew is not installed. Please install it manually from https://brew.sh/")
-            return
-
-        try:
-            print("Installing/upgrading Python and Tk with Homebrew...")
-            subprocess.check_call(["brew", "install", "python"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.check_call(["brew", "install", "python-tk"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
-            brew_path = "/usr/local/bin" if os.path.exists("/usr/local/bin") else "/opt/homebrew/bin"
-            os.environ["PATH"] = f"{brew_path}:{os.environ['PATH']}"
-            os.environ["TK_SILENCE_DEPRECATION"] = "1"
-            
-            print("Python and Tk installed/upgraded successfully with Homebrew.")
-        
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to install/upgrade Python or Tk: {e}")
-            sys.exit(1)
-
 def install_required_packages(log_widget=None):
     global requests, paramiko
     required_packages = ["requests", "paramiko>=3.0.0", "cryptography>=39.0.0", "packaging"]
@@ -182,9 +198,6 @@ def install_required_packages(log_widget=None):
 
     # Install PyWin32 specifically for Windows
     install_pywin32(log_widget)
-
-    # Attempt to install/upgrade Tk if on macOS
-    install_tk(log_widget)
 
     import requests
     import paramiko
@@ -1909,6 +1922,10 @@ def export_to_putty(api_key, server_name):
     messagebox.showinfo("Success", f"Exported to PuTTY for server '{server_name}'.")
 
 def create_app_window(api_key):
+    ssh_dir = os.path.expanduser("~/.ssh")
+    if not os.path.exists(ssh_dir):
+        os.makedirs(ssh_dir)
+    
     config = load_config()
 
     firewalls, server_types, locations, servers = fetch_data(api_key)
@@ -2485,41 +2502,35 @@ def prompt_api_key():
     root.title("API Key Input")
     root.geometry("300x150")
 
-    # Label with font specification
-    ttk.Label(root, text="Enter your API key:", font=("Helvetica", 12)).pack(pady=10)
+    ttk.Label(root, text="Enter your API key:").pack(pady=10)
 
-    # Entry box for API key
-    api_key_entry = ttk.Entry(root, width=30)  # Set explicit width
+    api_key_entry = ttk.Entry(root, show="*")
     api_key_entry.pack(pady=5)
+
     api_key_entry.focus_set()
 
     def on_submit():
         api_key = api_key_entry.get()
 
-        # Check for valid API key
         if len(api_key) == 64 and api_key.isalnum():
             global log_window
             log_window = tk.Toplevel(root)
             log_window.title("Dependency Installation Progress")
             log_window.geometry("600x400")
 
-            # Scrolled text for logs
             log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD, height=20, width=70)
             log_text.pack(pady=10, padx=10)
 
-            # Run installation with callback
             install_required_packages_in_thread(
                 log_text, 
-                lambda: on_installation_complete(root, api_key) if validate_api_key(api_key) else messagebox.showwarning("Invalid API Key", "The API key provided is invalid or does not have the required permissions.")
+                lambda: on_installation_complete(root, api_key) if validate_api_key(api_key) else tk.messagebox.showwarning("Invalid API Key", "The API key provided is invalid or does not have the required permissions.")
             )
         else:
-            messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
+            tk.messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
 
-    # Submit button with font specification
     submit_button = ttk.Button(root, text="Submit", command=on_submit)
     submit_button.pack(pady=20)
 
-    # Bind Enter key to submit
     root.bind('<Return>', lambda event: on_submit())
 
     root.mainloop()
