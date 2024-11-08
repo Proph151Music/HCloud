@@ -34,15 +34,11 @@ def ensure_python_version(log_widget=None):
                 log_widget.insert(tk.END, "Upgrading Python to 3.13+ with Homebrew...\n")
                 log_widget.see(tk.END)
 
-            # Install/upgrade Python using Homebrew
             try:
                 subprocess.check_call(["brew", "install", "python@3.13"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                
-                # Adjust PATH to use the newly installed Python
                 brew_path = "/usr/local/bin" if os.path.exists("/usr/local/bin") else "/opt/homebrew/bin"
                 os.environ["PATH"] = f"{brew_path}:{os.environ['PATH']}"
                 
-                # Set interpreter path to Python 3.13
                 new_python_path = subprocess.check_output(["which", "python3.13"]).strip().decode()
                 os.execv(new_python_path, ["python3.13"] + sys.argv)
 
@@ -57,6 +53,16 @@ def ensure_python_version(log_widget=None):
 
 ensure_python_version()
 
+def requires_break_system_packages():
+    try:
+        output = subprocess.check_output(
+            [sys.executable, "-m", "pip", "install", "--dry-run", "requests"],
+            stderr=subprocess.STDOUT
+        ).decode()
+        return "externally-managed-environment" in output
+    except subprocess.CalledProcessError as e:
+        return False
+    
 if os.environ.get("RESTARTED") == "1":
     # Remove the environment variable to prevent infinite restarts
     del os.environ["RESTARTED"]
@@ -73,7 +79,11 @@ def install_package(package_name, log_widget=None):
             log_widget.see(tk.END)
         print(f"Installing {package_name}...")
 
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+        pip_command = [sys.executable, "-m", "pip", "install", package_name]
+        if requires_break_system_packages():
+            pip_command.append("--break-system-packages")
+
+        subprocess.check_call(pip_command)
 
         if log_widget:
             log_widget.insert(tk.END, f"Package {package_name} installed successfully.\n")
