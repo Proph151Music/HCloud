@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import re
+import platform
 from tkinter import scrolledtext
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -136,31 +137,24 @@ def install_required_packages_in_thread(log_widget=None, completion_callback=Non
 
 def install_tk(log_widget=None):
     if platform.system() == "Darwin":  # macOS
-        # Check if Homebrew is installed
         brew_installed = subprocess.call(["which", "brew"], stdout=subprocess.DEVNULL) == 0
         if not brew_installed:
             if log_widget:
                 log_widget.insert(tk.END, "Homebrew is not installed. Please install it to update Tk.\n")
                 log_widget.see(tk.END)
-            print("Homebrew is not installed. Please install it manually from https://brew.sh/")
             return
-        
-        # Install or upgrade Tk via Homebrew
         if log_widget:
             log_widget.insert(tk.END, "Installing/upgrading Tk with Homebrew...\n")
             log_widget.see(tk.END)
-        
         try:
             subprocess.check_call(["brew", "install", "python-tk"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if log_widget:
                 log_widget.insert(tk.END, "Tk installed/upgraded successfully.\n")
                 log_widget.see(tk.END)
-            print("Tk installed/upgraded successfully.")
         except subprocess.CalledProcessError as e:
             if log_widget:
                 log_widget.insert(tk.END, f"Failed to install/upgrade Tk: {e}\n")
                 log_widget.see(tk.END)
-            print(f"Failed to install/upgrade Tk: {e}")
             sys.exit(1)
 
 def install_required_packages(log_widget=None):
@@ -188,7 +182,7 @@ def install_required_packages(log_widget=None):
 
     # Install PyWin32 specifically for Windows
     install_pywin32(log_widget)
-    
+
     # Attempt to install/upgrade Tk if on macOS
     install_tk(log_widget)
 
