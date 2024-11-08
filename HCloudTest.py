@@ -79,11 +79,10 @@ def install_package(package_name, log_widget=None):
             log_widget.see(tk.END)
         print(f"Installing {package_name}...")
 
-        pip_command = [sys.executable, "-m", "pip", "install", package_name]
-        if requires_break_system_packages():
-            pip_command.append("--break-system-packages")
+        env = os.environ.copy()
+        env["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
 
-        subprocess.check_call(pip_command)
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name], env=env)
 
         if log_widget:
             log_widget.insert(tk.END, f"Package {package_name} installed successfully.\n")
