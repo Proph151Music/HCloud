@@ -1958,7 +1958,34 @@ def create_app_window(api_key):
 
     app = tk.Toplevel()
     app.title("Hetzner Cloud Management Tool")
-    app.geometry("815x535")
+    app.geometry("825x535")
+
+    # Initialize ttk Style for custom button colors
+    style = ttk.Style()
+    style.theme_use("clam")
+
+    # Define styles for the "Create Server" and "Install nodectl" buttons
+    style.configure(
+        "CreateServer.TButton",
+        foreground="white",
+        background="#00008B",  # Dark blue
+        font=("Helvetica", 12, "bold"),
+    )
+    style.map(
+        "CreateServer.TButton",
+        background=[("active", "#000000"), ("!active", "#00008B")],  # Dark blue with black on hover
+    )
+
+    style.configure(
+        "InstallNodectl.TButton",
+        foreground="white",
+        background="dark green",  # Dark green
+        font=("Helvetica", 12, "bold"),
+    )
+    style.map(
+        "InstallNodectl.TButton",
+        background=[("active", "#000000"), ("!active", "dark green")],  # Dark green with black on hover
+    )
 
     # Set minimum window size
     app.minsize(815, 535)
@@ -2076,7 +2103,7 @@ def create_app_window(api_key):
     server_name_entry.grid(row=0, column=1, padx=(100, 0), pady=10, sticky='w')
     server_name_entry.insert(0, config.get("server_name", ""))
 
-    tk.Label(create_server_tab, text="Server Location:").grid(row=1, column=1, padx=5, pady=5, sticky='w')
+    tk.Label(create_server_tab, text="Location:").grid(row=1, column=1, padx=5, pady=5, sticky='w')
     selected_location_var = tk.StringVar(value=config.get("location", ""))
     locations_sorted = sorted(locations, key=lambda loc: loc['description'])
 
@@ -2122,7 +2149,7 @@ def create_app_window(api_key):
     adjust_column_widths(specs_tree)
     specs_frame.config(width=400)
     
-    tk.Label(create_server_tab, text="Select Firewall:").grid(row=0, column=2, padx=5, pady=5, sticky='w')
+    tk.Label(create_server_tab, text="Firewall:").grid(row=0, column=2, padx=5, pady=5, sticky='w')
     firewall_dropdown = ttk.Combobox(create_server_tab, textvariable=selected_firewall, values=[fw['name'] for fw in firewalls], width=25)
     firewall_dropdown.set(config.get("firewall", ""))
     firewall_dropdown.grid(row=0, column=2, padx=(100, 0), pady=10, sticky='w')
@@ -2139,7 +2166,7 @@ def create_app_window(api_key):
 
     selected_firewall.trace("w", update_firewall_buttons)
 
-    tk.Label(create_server_tab, text="Select SSH Key:").grid(row=1, column=2, padx=5, pady=5, sticky='w')
+    tk.Label(create_server_tab, text="SSH Key:").grid(row=1, column=2, padx=5, pady=5, sticky='w')
     ssh_dropdown = ttk.Combobox(create_server_tab, textvariable=selected_ssh, values=[ssh['name'] for ssh in ssh_keys], width=25)
     ssh_dropdown.set(config.get("ssh_key", ""))
     ssh_dropdown.grid(row=1, column=2, padx=(100, 0), pady=10, sticky='w')
@@ -2223,15 +2250,14 @@ def create_app_window(api_key):
         if server_names:
             selected_server_var.set(server_name_entry.get())
 
-    create_server_button = tk.Button(
-        create_server_tab, 
-        text="Create Server", 
-        command=create_server_button_click,
-        bg="dark green",   
-        fg="white",       
-        width=20
-    )
 
+    create_server_button = ttk.Button(
+        create_server_tab,
+        text="Create Server",
+        command=create_server_button_click,
+        style="CreateServer.TButton",
+        width=20,
+    )
     create_server_button.grid(row=10, column=1, columnspan=3, padx=15, pady=10, sticky='se')
 
     create_server_tab.grid_columnconfigure(0, weight=2)
@@ -2310,8 +2336,8 @@ def create_app_window(api_key):
     status_text = tk.Text(
         status_frame, 
         wrap='none',   # Disable word wrapping to enable horizontal scrolling
-        height=14, 
-        width=97
+        height=13, 
+        width=98
     )
     status_text.grid(row=0, column=0, sticky='nsew')
 
@@ -2379,27 +2405,25 @@ def create_app_window(api_key):
         # Attach the trace to the variable
         export_to_putty_var.trace_add('write', on_export_to_putty_var_changed)
 
-    install_button = tk.Button(
-            install_nodectl_tab, 
-            text="Install nodectl", 
-            command=lambda: start_install_nodectl(
-                api_key, 
-                selected_server_var.get(), 
-                selected_ssh.get(), 
-                status_text, 
-                p12_file_var.get(), 
-                node_username_var.get(), 
-                selected_network_var.get(),
-                selected_nodectl_version_var.get(),
-                app,
-                create_shortcuts_var,
-                export_to_putty
-            ), 
-            bg="dark blue", 
-            fg="white", 
-            width=20
-        )
-    # create_server_button.grid(row=10, column=1, columnspan=3, padx=15, pady=10, sticky='se')
+    install_button = ttk.Button(
+        install_nodectl_tab,
+        text="Install nodectl",
+        command=lambda: start_install_nodectl(
+            api_key, 
+            selected_server_var.get(), 
+            selected_ssh.get(), 
+            status_text, 
+            p12_file_var.get(), 
+            node_username_var.get(), 
+            selected_network_var.get(),
+            selected_nodectl_version_var.get(),
+            app,
+            create_shortcuts_var,
+            export_to_putty
+        ),
+        style="InstallNodectl.TButton",
+        width=20,
+    )
     install_button.grid(row=6, column=1, columnspan=3, padx=25, pady=10, sticky='se')
     
     def format_size(size_gb):
@@ -2510,12 +2534,18 @@ def prompt_api_key():
     root = tk.Tk()
     root.title("API Key Input")
     root.geometry("300x150")
+    
+    root.configure(bg="#333333")
 
-    ttk.Label(root, text="Enter your API key:").pack(pady=10)
+    style = ttk.Style()
+    style.theme_use('clam')
+    style.configure("Custom.TButton", foreground="white", background="#8B0000", font=("Helvetica", 12, "bold"))
+    style.map("Custom.TButton", background=[("active", "#000000"), ("!active", "#8B0000")])
+
+    ttk.Label(root, text="Paste your Hetzner API key:", background=root['bg'], foreground="white").pack(pady=10)
 
     api_key_entry = ttk.Entry(root, show="*")
     api_key_entry.pack(pady=5)
-
     api_key_entry.focus_set()
 
     def on_submit():
@@ -2537,7 +2567,7 @@ def prompt_api_key():
         else:
             tk.messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
 
-    submit_button = ttk.Button(root, text="Submit", command=on_submit)
+    submit_button = ttk.Button(root, text="Submit", command=on_submit, style="Custom.TButton")
     submit_button.pack(pady=20)
 
     root.bind('<Return>', lambda event: on_submit())
