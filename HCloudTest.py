@@ -139,22 +139,22 @@ def install_tk(log_widget=None):
     if platform.system() == "Darwin":  # macOS
         brew_installed = subprocess.call(["which", "brew"], stdout=subprocess.DEVNULL) == 0
         if not brew_installed:
-            if log_widget:
-                log_widget.insert(tk.END, "Homebrew is not installed. Please install it to update Tk.\n")
-                log_widget.see(tk.END)
+            print("Homebrew is not installed. Please install it manually from https://brew.sh/")
             return
-        if log_widget:
-            log_widget.insert(tk.END, "Installing/upgrading Tk with Homebrew...\n")
-            log_widget.see(tk.END)
+
         try:
+            print("Installing/upgrading Python and Tk with Homebrew...")
+            subprocess.check_call(["brew", "install", "python"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.check_call(["brew", "install", "python-tk"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if log_widget:
-                log_widget.insert(tk.END, "Tk installed/upgraded successfully.\n")
-                log_widget.see(tk.END)
+            
+            brew_path = "/usr/local/bin" if os.path.exists("/usr/local/bin") else "/opt/homebrew/bin"
+            os.environ["PATH"] = f"{brew_path}:{os.environ['PATH']}"
+            os.environ["TK_SILENCE_DEPRECATION"] = "1"
+            
+            print("Python and Tk installed/upgraded successfully with Homebrew.")
+        
         except subprocess.CalledProcessError as e:
-            if log_widget:
-                log_widget.insert(tk.END, f"Failed to install/upgrade Tk: {e}\n")
-                log_widget.see(tk.END)
+            print(f"Failed to install/upgrade Python or Tk: {e}")
             sys.exit(1)
 
 def install_required_packages(log_widget=None):
