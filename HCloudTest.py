@@ -2360,15 +2360,18 @@ def create_app_window(api_key):
     status_frame.grid_rowconfigure(0, weight=1)
     status_frame.grid_columnconfigure(0, weight=1)
 
-    tk.Label(install_nodectl_tab, text="Import P12 File (Optional):").grid(row=4, column=0, padx=10, pady=10, sticky='w')
+    tk.Label(install_nodectl_tab, text="Import P12 File (Optional):").grid(row=4, column=0, padx=(10, 0), pady=10, sticky='w')
 
     p12_file_var = tk.StringVar()
     p12_file_entry = tk.Entry(install_nodectl_tab, textvariable=p12_file_var, width=50)
-    p12_file_entry.grid(row=4, column=1, padx=10, pady=10, sticky='w')
+    p12_file_entry.grid(row=4, column=1, padx=(5, 0), pady=10, sticky='w')
 
-    p12_file_button = tk.Button(install_nodectl_tab, text="Browse", 
-                                command=lambda: p12_file_var.set(filedialog.askopenfilename(filetypes=[("P12 Files", "*.p12"), ("All Files", "*.*")])))
-    p12_file_button.grid(row=4, column=2, padx=0, pady=10, sticky='w')
+    p12_file_button = tk.Button(
+        install_nodectl_tab, 
+        text="Browse",
+        command=lambda: p12_file_var.set(filedialog.askopenfilename(filetypes=[("P12 Files", "*.p12"), ("All Files", "*.*")]))
+    )
+    p12_file_button.grid(row=4, column=2, padx=(5, 10), pady=10, sticky='w')
 
     create_shortcuts_checkbox = tk.Checkbutton(
         install_nodectl_tab,
