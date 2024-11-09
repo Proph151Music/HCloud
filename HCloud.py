@@ -2288,7 +2288,7 @@ def create_app_window(api_key):
         install_nodectl_tab, 
         textvariable=selected_server_var, 
         values=[srv['name'] for srv in servers], 
-        width=30
+        width=25
     )
     server_dropdown.grid(row=0, column=1, padx=(5, 10), pady=10, sticky='w')
 
@@ -2303,7 +2303,7 @@ def create_app_window(api_key):
         install_nodectl_tab, 
         textvariable=selected_ssh, 
         values=[ssh['name'] for ssh in ssh_keys], 
-        width=30
+        width=25
     )
     ssh_dropdown2.set(config.get("ssh_key", ""))
     ssh_dropdown2.grid(row=0, column=2, padx=(5, 10), pady=10, sticky='e')
@@ -2317,7 +2317,7 @@ def create_app_window(api_key):
         install_nodectl_tab, 
         textvariable=selected_network_var, 
         values=["mainnet", "integrationnet", "testnet"], 
-        width=30
+        width=25
     )
     network_dropdown.grid(row=1, column=1, padx=(5, 10), pady=10, sticky='w')
     # network_dropdown.grid(row=1, column=1, padx=10, pady=10, sticky='w')
@@ -2333,7 +2333,7 @@ def create_app_window(api_key):
         install_nodectl_tab,
         textvariable=selected_nodectl_version_var,
         values=nodectl_versions,
-        width=30
+        width=25
     )
     nodectl_version_dropdown.grid(row=1, column=2, padx=(5, 10), pady=10, sticky='e')
     # nodectl_version_dropdown.grid(row=1, column=2, padx=10, pady=10, sticky='e')
@@ -2343,7 +2343,7 @@ def create_app_window(api_key):
     username_entry = tk.Entry(
         install_nodectl_tab, 
         textvariable=node_username_var, 
-        width=33
+        width=28
     )
     username_entry.grid(row=2, column=1, padx=10, pady=10, sticky='w')
 
