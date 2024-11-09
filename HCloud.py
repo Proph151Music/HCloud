@@ -912,9 +912,17 @@ def create_ssh_key(api_key, ssh_key_name, passphrase, ssh_dropdown):
         return None
 
     # Create the SSH key pair with the provided passphrase
-    cmd = f"ssh-keygen -t rsa -b 4096 -f \"{key_path}\" -N \"{passphrase}\" -C \"{ssh_key_name}\""
-    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if platform.system() == "Windows":
+        # Use original command on Windows
+        cmd = f"ssh-keygen -t rsa -b 4096 -f \"{key_path}\" -N \"{passphrase}\" -C \"{ssh_key_name}\""
+    else:
+        # Adjust for UNIX-based systems (macOS/Linux)
+        escaped_passphrase = passphrase.replace('"', '\\"')
+        cmd = ["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", key_path, "-N", escaped_passphrase, "-C", ssh_key_name]
     
+    # Run the command without shell=True on macOS/Linux to prevent issues with $ and other special characters
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     if result.returncode != 0:
         logging.error(f"Failed to generate SSH key locally. Error: {result.stderr.decode('utf-8')}")
         return None
