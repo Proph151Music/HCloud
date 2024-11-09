@@ -50,6 +50,9 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 
 To manage your cloud resources with HCloud, you'll need a **Read/Write API key** from your Hetzner Cloud account.
 
+This link will walk you through setting an API Key up. (Just remember, it needs to be Read/Write).
+https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/
+
 1. **Log in to your Hetzner Cloud account**: Visit the [Hetzner Cloud Console](https://console.hetzner.cloud) and sign in.
 2. **Navigate to "API" settings**: On the left-hand menu, click **Security** > **API Tokens**.
 3. **Create a new API key**:
@@ -65,7 +68,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
 
 ### Windows
 
-1. Open **Command Prompt** or **PowerShell**. Make sure it is running as an administrator.
+1. Open **Command Prompt** or **PowerShell**. Make sure it is running as an administrator. You can type "CMD" in the search box on the taskbar and Right Click on CMD to choose "Run as Administrator".
 2. Download the `HCloud.py` file using:
    ```powershell
    curl -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/HCloud.py
