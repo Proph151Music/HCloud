@@ -2297,7 +2297,7 @@ def create_app_window(api_key):
         lambda *args: on_server_select(selected_server_var, status_text, api_key, *args)
     )
 
-    tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=(10, 5), pady=10, sticky='e')
+    tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=(35, 5), pady=10, sticky='e')
     # tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=10, pady=10, sticky='e')
     ssh_dropdown2 = ttk.Combobox(
         install_nodectl_tab, 
@@ -2326,7 +2326,7 @@ def create_app_window(api_key):
     nodectl_versions, latest_nodectl_version = get_available_nodectl_versions()
 
     # Add a label and combobox for selecting the nodectl version
-    tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=(10, 5), pady=10, sticky='e')
+    tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=(35, 5), pady=10, sticky='e')
     # tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=10, pady=10, sticky='e')
     selected_nodectl_version_var = tk.StringVar(value=latest_nodectl_version)
     nodectl_version_dropdown = ttk.Combobox(
