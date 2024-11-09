@@ -2113,7 +2113,7 @@ def create_app_window(api_key):
 
     # Create Server Tab
     tk.Label(create_server_tab, text="Server Name:").grid(row=0, column=1, padx=5, pady=5, sticky='w')
-    server_name_entry = tk.Entry(create_server_tab, width=23)
+    server_name_entry = tk.Entry(create_server_tab, width=33)
     server_name_entry.grid(row=0, column=1, padx=(100, 0), pady=10, sticky='w')
     server_name_entry.insert(0, config.get("server_name", ""))
 
@@ -2122,7 +2122,7 @@ def create_app_window(api_key):
     locations_sorted = sorted(locations, key=lambda loc: loc['description'])
 
     # Server Location
-    location_dropdown = ttk.Combobox(create_server_tab, textvariable=selected_location_var, values=[f"{loc['name']}: {loc['description']}" for loc in locations_sorted], width=20)
+    location_dropdown = ttk.Combobox(create_server_tab, textvariable=selected_location_var, values=[f"{loc['name']}: {loc['description']}" for loc in locations_sorted], width=30)
     location_dropdown.grid(row=1, column=1, padx=(100, 0), pady=10, sticky='w')
     location_dropdown.set(config.get("location", ""))
 
@@ -2347,9 +2347,9 @@ def create_app_window(api_key):
     username_entry = tk.Entry(
         install_nodectl_tab, 
         textvariable=node_username_var, 
-        width=33
+        width=35
     )
-    username_entry.grid(row=2, column=1, padx=10, pady=10, sticky='w')
+    username_entry.grid(row=2, column=1, padx=(5, 10), pady=10, sticky='w')
 
     install_nodectl_tab.grid_columnconfigure(0, weight=1)
     install_nodectl_tab.grid_columnconfigure(1, weight=1)
