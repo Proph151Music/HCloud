@@ -2281,7 +2281,7 @@ def create_app_window(api_key):
     create_server_tab.grid_rowconfigure(2, weight=1)
 
     # Install nodectl Tab
-    tk.Label(install_nodectl_tab, text="Select Server:").grid(row=0, column=0, padx=10, pady=10, sticky='w')
+    tk.Label(install_nodectl_tab, text="Select Server:").grid(row=0, column=0, padx=(10, 5), pady=10, sticky='w')
     selected_server_var = tk.StringVar()
 
     server_dropdown = ttk.Combobox(
@@ -2290,14 +2290,15 @@ def create_app_window(api_key):
         values=[srv['name'] for srv in servers], 
         width=30
     )
-    server_dropdown.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+    server_dropdown.grid(row=0, column=1, padx=(5, 10), pady=10, sticky='w')
 
     selected_server_var.trace(
         "w", 
         lambda *args: on_server_select(selected_server_var, status_text, api_key, *args)
     )
 
-    tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=10, pady=10, sticky='e')
+    tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=(10, 5), pady=10, sticky='e')
+    # tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=10, pady=10, sticky='e')
     ssh_dropdown2 = ttk.Combobox(
         install_nodectl_tab, 
         textvariable=selected_ssh, 
@@ -2305,11 +2306,12 @@ def create_app_window(api_key):
         width=30
     )
     ssh_dropdown2.set(config.get("ssh_key", ""))
-    ssh_dropdown2.grid(row=0, column=2, padx=10, pady=10, sticky='e')
+    ssh_dropdown2.grid(row=0, column=2, padx=(5, 10), pady=10, sticky='e')
+    # ssh_dropdown2.grid(row=0, column=2, padx=10, pady=10, sticky='e')
 
     selected_ssh.trace("w", lambda *args: ssh_dropdown2.set(selected_ssh.get()))
 
-    tk.Label(install_nodectl_tab, text="Select Network:").grid(row=1, column=0, padx=10, pady=10, sticky='w')
+    tk.Label(install_nodectl_tab, text="Select Network:").grid(row=1, column=0, padx=(10, 5), pady=10, sticky='w')
     selected_network_var = tk.StringVar(value="")
     network_dropdown = ttk.Combobox(
         install_nodectl_tab, 
@@ -2317,13 +2319,15 @@ def create_app_window(api_key):
         values=["mainnet", "integrationnet", "testnet"], 
         width=30
     )
-    network_dropdown.grid(row=1, column=1, padx=10, pady=10, sticky='w')
+    network_dropdown.grid(row=1, column=1, padx=(5, 10), pady=10, sticky='w')
+    # network_dropdown.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
     # Fetch available nodectl versions
     nodectl_versions, latest_nodectl_version = get_available_nodectl_versions()
 
     # Add a label and combobox for selecting the nodectl version
-    tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=10, pady=10, sticky='e')
+    tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=(10, 5), pady=10, sticky='e')
+    # tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=10, pady=10, sticky='e')
     selected_nodectl_version_var = tk.StringVar(value=latest_nodectl_version)
     nodectl_version_dropdown = ttk.Combobox(
         install_nodectl_tab,
@@ -2331,7 +2335,8 @@ def create_app_window(api_key):
         values=nodectl_versions,
         width=30
     )
-    nodectl_version_dropdown.grid(row=1, column=2, padx=10, pady=10, sticky='e')
+    nodectl_version_dropdown.grid(row=1, column=2, padx=(5, 10), pady=10, sticky='e')
+    # nodectl_version_dropdown.grid(row=1, column=2, padx=10, pady=10, sticky='e')
 
     tk.Label(install_nodectl_tab, text="Node Username:").grid(row=2, column=0, padx=10, pady=10, sticky='w')
     node_username_var = tk.StringVar(value="nodeadmin")
