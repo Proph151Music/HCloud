@@ -1166,7 +1166,10 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
                 os.startfile(server_info_file)
         else:
             if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
-                subprocess.call(['xdg-open', server_info_file])
+                if platform.system() == "Darwin":  # macOS
+                    subprocess.call(['open', server_info_file])
+                elif platform.system() == "Linux":
+                    subprocess.call(['xdg-open', server_info_file])
     else:
         messagebox.showerror("Error", f"Failed to create server. Response: {response.text}")
 
@@ -1875,7 +1878,10 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                     if os.name == 'nt':
                         os.startfile(ssh_config_file)
                     else:
-                        subprocess.call(['xdg-open', ssh_config_file])
+                        if platform.system() == "Darwin":  # macOS
+                            subprocess.call(['open', ssh_config_file])
+                        elif platform.system() == "Linux":
+                            subprocess.call(['xdg-open', ssh_config_file])
                     message_window.destroy()
 
                 yes_button = tk.Button(buttons_frame, text="Open Server Config File", command=open_server_info)
