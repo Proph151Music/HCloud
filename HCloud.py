@@ -2589,31 +2589,62 @@ def prompt_api_key():
     global root
     root = tk.Tk()
     root.title("API Key Input")
-    root.geometry("400x200")
     root.configure(bg="#333333")
+
+    # Define the window's dimensions
+    window_width = 375
+    window_height = 230
+
+    # Get the screen's width and height
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+
+    # Calculate position x, y to center the window
+    position_x = (screen_width // 2) - (window_width // 2)
+    position_y = (screen_height // 3) - (window_height // 2)
+
+    # Set the window geometry with width, height, and calculated position
+    root.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")
 
     style = ttk.Style()
     style.theme_use('clam')
     style.configure("Custom.TButton", foreground="white", background="#8B0000", font=("Helvetica", 12, "bold"))
     style.map("Custom.TButton", background=[("active", "#000000"), ("!active", "#8B0000")])
 
-    instructions_text = tk.Text(root, bg="#333333", fg="white", wrap="word", relief="flat", font=("Helvetica", 10))
-    instructions_text.insert(tk.END, "To manage your cloud resources with HCloud, you'll need a Read/Write API key from your Hetzner Cloud account.\n\nThis link will walk you through setting an API Key up. (Just remember, it needs to be Read/Write): ")
-    instructions_text.tag_config("link", foreground="lightblue", underline=True)
-    instructions_text.tag_bind("link", "<Button-1>", lambda e: open_link("https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/"))
-    instructions_text.insert(tk.END, "Create a Hetzner API Key", "link")
-    instructions_text.insert(tk.END, "\n\nOnce you have your Hetzner API Key, paste it in the box below.")
-    instructions_text.config(state="disabled")
-    instructions_text.pack(pady=10, padx=10)
+    # Instructions text with hyperlink
+    instructions_frame = tk.Frame(root, bg="#333333")
+    instructions_frame.grid(row=0, column=0, columnspan=2, pady=(10, 5), padx=10, sticky="nsew")
 
-    ttk.Label(root, text="Paste your Hetzner API key:", background=root['bg'], foreground="white").pack(pady=5)
+    # Description label within instructions frame
+    description_label = tk.Label(instructions_frame, text="To manage your cloud resources with HCloud, you'll need a Read/Write API key from your Hetzner Cloud account:", 
+                                 bg="#333333", fg="white", wraplength=300, font=("Helvetica", 10), justify="center")
+    description_label.pack()
+
+    # Hyperlink (as a clickable label) within instructions frame
+    def open_link(event):
+        import webbrowser
+        webbrowser.open("https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/")
+
+    link_label = tk.Label(instructions_frame, text="Create a Hetzner API Key", fg="lightblue", bg="#333333", cursor="hand2", font=("Helvetica", 10, "underline"))
+    link_label.pack(pady=(5, 0))
+    link_label.bind("<Button-1>", open_link)    
+
+    # Label and entry box for API key input
+    ttk.Label(root, text="Paste your Hetzner API key below:", background=root['bg'], foreground="white").grid(row=1, column=0, columnspan=2, pady=(5, 5), padx=(10, 5))
 
     api_key_entry = ttk.Entry(root, show="*")
-    api_key_entry.pack(pady=5)
+    api_key_entry.grid(row=2, column=0, columnspan=2, pady=(5, 5), padx=(10, 10), sticky="ew")
     api_key_entry.focus_set()
 
-    def on_submit():
-        api_key = api_key_entry.get()
+    # Submit button
+    submit_button = ttk.Button(root, text="Submit", command=lambda: on_submit(api_key_entry.get()), style="Custom.TButton")
+    submit_button.grid(row=3, column=0, columnspan=2, pady=(10, 15))
+
+    # Adjust grid weights for responsive resizing
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(1, weight=1)
+
+    def on_submit(api_key):
         if len(api_key) == 64 and api_key.isalnum():
             global log_window
             log_window = tk.Toplevel(root)
@@ -2630,10 +2661,7 @@ def prompt_api_key():
         else:
             messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
 
-    submit_button = ttk.Button(root, text="Submit", command=on_submit, style="Custom.TButton")
-    submit_button.pack(pady=20)
-
-    root.bind('<Return>', lambda event: on_submit())
+    root.bind('<Return>', lambda event: on_submit(api_key_entry.get()))
     root.mainloop()
 
 if __name__ == "__main__":
