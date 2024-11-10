@@ -18,9 +18,10 @@ import webbrowser
 import shlex
 
 root = None
+restart_required = False
 
 # Ensure Python 3.13+ on macOS
-def ensure_python_version(log_widget=None):
+def ensure_python_and_brew(log_widget=None):
     if platform.system() == "Darwin":  # macOS check
         python_version_output = subprocess.run(
             ["python3", "--version"],
@@ -36,9 +37,8 @@ def ensure_python_version(log_widget=None):
 
             try:
                 subprocess.check_call(["brew", "install", "python@3.13"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                brew_path = "/usr/local/bin" if os.path.exists("/usr/local/bin") else "/opt/homebrew/bin"
-                os.environ["PATH"] = f"{brew_path}:{os.environ['PATH']}"
-                
+                configure_brew_path()
+
                 new_python_path = subprocess.check_output(["which", "python3.13"]).strip().decode()
                 os.execv(new_python_path, ["python3.13"] + sys.argv)
 
@@ -47,11 +47,23 @@ def ensure_python_version(log_widget=None):
                     log_widget.insert(tk.END, f"Failed to upgrade Python: {e}\n")
                     log_widget.see(tk.END)
                 sys.exit(1)
-
         else:
             print(f"Python version is sufficient: {python_version_output}")
 
-ensure_python_version()
+def configure_brew_path():
+    """Ensure Homebrew is in the PATH for both zsh and bash users."""
+    brew_path = "/opt/homebrew/bin"
+    shell_profile = os.path.expanduser("~/.zshrc" if os.environ.get("SHELL", "").endswith("zsh") else "~/.bash_profile")
+    
+    if brew_path not in os.environ.get("PATH", ""):
+        print(f"Adding {brew_path} to PATH in {shell_profile}...")
+        with open(shell_profile, "a") as file:
+            file.write(f'\n# Add Homebrew to PATH\nexport PATH="{brew_path}:$PATH"\n')
+        
+        subprocess.call(f"source {shell_profile}", shell=True)
+        print("PATH updated and profile reloaded.")
+
+ensure_python_and_brew()
 
 def requires_break_system_packages():
     try:
@@ -142,15 +154,16 @@ def install_pywin32(log_widget=None):
             logging.debug("PyWin32 not found. Installing PyWin32...")
             install_package('pywin32', log_widget)
             try:
-                # Run the post-install script for pywin32
                 subprocess.check_call([sys.executable, '-m', 'pywin32_postinstall', 'install'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if log_widget:
                     log_widget.insert(tk.END, "PyWin32 post-installation completed.\n")
                     log_widget.see(tk.END)
                 logging.debug("PyWin32 post-installation completed.")
                 
-                # Optionally restart the script if needed
-                restart_script()
+                # Set a flag to signal that a restart is required without immediate restart
+                global restart_required
+                restart_required = True
+
             except subprocess.CalledProcessError as e:
                 if log_widget:
                     log_widget.insert(tk.END, f"Warning: Failed to run pywin32 post-installation: {e}\n")
@@ -173,6 +186,7 @@ def on_installation_complete(root, api_key):
 
 def install_required_packages_in_thread(log_widget=None, completion_callback=None):
     def install_packages():
+        ensure_python_and_brew(log_widget)
         install_required_packages(log_widget)
         if completion_callback:
             print("Calling completion_callback")
@@ -210,6 +224,10 @@ def install_required_packages(log_widget=None):
 
     import requests
     import paramiko
+
+    # Only restart if pywin32 was successfully installed and flagged
+    if restart_required:
+        restart_script()
 
 ssh_var_dict = {}
 firewalls = []
