@@ -32,27 +32,38 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 
 ### Installing Python (If you don’t have it already)
 
-1. **Windows**: Visit [Python's official site](https://www.python.org/downloads/) and download the latest version. During installation, ensure you check the box that says "Add Python to PATH."
-2. **macOS**: Python comes pre-installed. You can update it using the command:
+- **Windows**: 
+  - Skip to the [Installation](#installation) section.
+---------------------------------------------------------------------------------
+  
+- **macOS**:
+  - Python comes pre-installed. You can update it with homebrew by sending this command inside Terminal:
    ```bash
-   brew install python
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && brew update && brew install python && python3 --version | grep -q '^Python 3\.[1-9][3-9]' || echo "Python version below 3.13, consider updating."
    ```
-3. **Linux**: Use your package manager to install Python:
+---------------------------------------------------------------------------------
+
+- **Linux**: 
+  - Use your package manager to install Python:
    ```bash
    sudo apt update && sudo apt install python3
    ```
-4. **ChromeOS**: You may need to enable Linux (Crostini) to install Python:
+---------------------------------------------------------------------------------
+
+- **ChromeOS**:
+  - You may need to enable Linux (Crostini) to install Python:
    ```bash
    sudo apt install python3
    ```
+---------------------------------------------------------------------------------
 
 ## Creating a Hetzner API Key
 
 To manage your cloud resources with HCloud, you'll need a **Read/Write API key** from your Hetzner Cloud account.
 
 This link will walk you through setting an API Key up. (Just remember, it needs to be Read/Write).
-https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/
-
+- https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/
+---------------------------------------------------------------------------------
 1. **Log in to your Hetzner Cloud account**: Visit the [Hetzner Cloud Console](https://console.hetzner.cloud) and sign in.
 2. **Navigate to "API" settings**: On the left-hand menu, click **Security** > **API Tokens**.
 3. **Create a new API key**:
@@ -63,20 +74,37 @@ https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/
 4. **Copy the API key**: The key will only be shown once. Copy it and store it securely.
 
 You will need this key when you first run HCloud to connect the tool to your Hetzner Cloud account.
+---------------------------------------------------------------------------------
 
 ## Installation
 
 ### Windows
 
-1. Open **Command Prompt** or **PowerShell**. Make sure it is running as an administrator. You can type "CMD" in the search box on the taskbar and Right Click on CMD to choose "Run as Administrator".
-2. Download the `HCloud.py` file using:
-   ```powershell
-   curl -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/HCloud.py
-   ```
-3. Run the script:
-   ```powershell
-   python HCloud.py
-   ```
+**Download and Extract the HCloud_launcher.zip file**
+
+1. **Download the File:**
+   - [Right-click here and select "Save As"](https://github.com/Proph151Music/HCloud/raw/main/Windows/HCloud_Launcher.zip) to download the `HCloud_launcher.zip` file.
+   - Save the file in your desired location, such as the `C:\Users\YourUsername\Downloads` directory.
+
+2. **Extract the File:**
+   - Browse to the location where you downloaded the `HCloud_launcher.zip` file.
+   - Right-click on `HCloud_launcher.zip` and select "Extract All...".
+   - Choose your desired extraction location and click "Extract".
+
+3. **Run the File:**
+   - Navigate to the extracted folder.
+   - Run the `HCloud_launcher.bat` file by double clicking on it.
+
+   **Script Behavior:**
+   - The `HCloud_launcher.bat` file will check if you have Python and pip installed. If not, it will ask if you want the script to download and set them up for you automatically.
+   - If `HCloud_launcher.bat` detects that you already have Python and pip installed properly, it will ask if you'd like to launch the `hcmt.py` file.
+
+   **Direct Execution:**
+   - Alternatively, if Python and pip are already installed and properly set up in the PATH, the `HCloud.py` file can be launched directly from a CMD prompt using the following command:
+     ```sh
+     python HCloud.py
+     ```
+---------------------------------------------------------------------------------
 
 ### macOS
 
@@ -89,6 +117,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
    ```bash
    python3 -m venv venv && source venv/bin/activate && python HCloud.py
    ```
+---------------------------------------------------------------------------------
 
 ### Linux
 
@@ -101,6 +130,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
    ```bash
    python3 HCloud.py
    ```
+---------------------------------------------------------------------------------
 
 ### ChromeOS
 
@@ -113,6 +143,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
    ```bash
    python3 HCloud.py
    ```
+---------------------------------------------------------------------------------
 
 ## How to Use HCloud
 
@@ -130,6 +161,7 @@ HCloud also provides the ability to install **nodectl**, on your Hetzner servers
 1. **Select a server**: Choose an existing server in your Hetzner Cloud.
 2. **Configure nodectl**: Enter necessary details like the network (mainnet, integrationnet, testnet, etc.), the node username to setup, upload/import an optional P12 file.
 3. **Install nodectl**: Click the "Install nodectl" button, and HCloud will handle the rest. You’ll be able to monitor the installation process in the log window.
+---------------------------------------------------------------------------------
 
 ## Acknowledgments
 This script was written by @Proph151Music for the Constellation Network ecosystem. 
