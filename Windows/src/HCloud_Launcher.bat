@@ -1,4 +1,12 @@
 @echo off
+:: Check if running with admin privileges
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    echo Requesting admin privileges...
+    :: Re-run the batch file with administrator privileges
+    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
 setlocal enabledelayedexpansion
 
 set SCRIPT_DIR=%~dp0
@@ -139,7 +147,6 @@ if !PYTHON_FOUND! equ 0 (
     )
 )
 
-
 :check_python
 set PATH=%PYTHON_DIR%;%PYTHON_DIR%\Scripts;%PATH%
 
@@ -154,6 +161,15 @@ if "%CHECK_PYTHON_ERRORLEVEL%"=="0" (
 ) else (
     echo Python was not found even after adding to PATH. >> %LOGFILE%
     echo Python was not found even after adding to PATH.
+    echo >> %LOGFILE%
+    echo Please try running this script again now that python is installed: >> %LOGFILE%
+    echo "%~f0" >> %LOGFILE%
+    echo.
+    echo ==============================
+    echo ** Please try running this script again now that Python is installed! **
+    echo "%~f0"
+    echo ==============================
+    echo.
     exit /b
 )
 
@@ -175,7 +191,11 @@ if /i "!run_HCloud!"=="y" (
     REM Log the directory from where HCloud.py is being launched
     echo Launching HCloud.py from directory: %cd% >> %LOGFILE%
     echo Running HCloud.py... >> %LOGFILE%
-    start "" python HCloud.py
+    
+    REM Use full path to python to ensure it runs
+    for /f "delims=" %%i in ('powershell -command "(Get-Command python).Path"') do set "PYTHON_PATH=%%i"
+    echo Using Python at !PYTHON_PATH! >> %LOGFILE%
+    start "" "!PYTHON_PATH!" HCloud.py
     exit
 )
 goto :eof
@@ -360,17 +380,21 @@ if exist "!pythonInstallerPath!" (
 
 REM Install Python unattended
 start /wait "" "!pythonInstallerPath!" /passive InstallAllUsers=1 PrependPath=1 Include_pip=1
+exit /b
 
 REM Install pip if not already installed
 python -m ensurepip --upgrade >> %LOGFILE% 2>>&1
 python -m pip install --upgrade pip >> %LOGFILE% 2>>&1
 
-REM Detect Python installation path
-for /f "delims=" %%A in ('powershell -command "(Get-Command python).Path"') do set "pythonPath=%%A"
-set "pythonDir=%pythonPath:\python.exe=%"
-set "scriptDir=%pythonDir%\Scripts"
-echo Detected Python directory: %pythonDir% >> %LOGFILE%
-echo Detected Scripts directory: %scriptDir% >> %LOGFILE%
+REM Detect Python installation path more reliably after installation
+for /f "tokens=*" %%A in ('where python') do (
+    set "pythonPath=%%A"
+    set "pythonDir=!pythonPath:\python.exe=!"
+    set "scriptDir=!pythonDir!\Scripts"
+)
+
+echo Detected Python directory: !pythonDir! >> %LOGFILE%
+echo Detected Scripts directory: !scriptDir! >> %LOGFILE%
 
 REM Remove only invalid Python paths from PATH
 for %%P in ("%PATH:;=" "%") do (
@@ -384,11 +408,15 @@ for %%P in ("%PATH:;=" "%") do (
 )
 
 REM Add the new Python paths
-set "newPath=%pythonDir%;%scriptDir%;!newPath!"
-echo New PATH: !newPath! >> %LOGFILE%
-
-REM Update the system PATH
-powershell -command "[System.Environment]::SetEnvironmentVariable('Path', '%newPath%', [System.EnvironmentVariableTarget]::Machine)" >> %LOGFILE% 2>>&1
+if defined pythonDir (
+    set "newPath=!pythonDir!;!scriptDir!;%PATH%"
+    echo New PATH: !newPath! >> %LOGFILE%
+    powershell -command "[System.Environment]::SetEnvironmentVariable('Path', '%newPath%', [System.EnvironmentVariableTarget]::Machine)" >> %LOGFILE% 2>>&1
+) else (
+    echo Error: Python directory not detected. >> %LOGFILE%
+    echo Exiting due to installation failure. >> %LOGFILE%
+    exit /b
+)
 
 REM Ensure pip is included in the PATH
 set "scriptDir=%pythonDir%\Scripts"
@@ -407,6 +435,16 @@ echo Verifying pip installation... >> %LOGFILE%
 pip --version >> %LOGFILE% 2>>&1
 set PIP_ERRORLEVEL=%errorlevel%
 
+REM Check that Python and pip are both installed successfully
+if "%PYTHON_ERRORLEVEL%"=="0" if "%PIP_ERRORLEVEL%"=="0" (
+    echo Python and pip installed successfully. >> %LOGFILE%
+    call :check_and_run_HCloud
+) else (
+    echo Installation failed: Python or pip not found after installation. >> %LOGFILE%
+    pause
+    exit /b
+)
+
 REM Clean up
 del /f "!pythonInstallerPath!" >> %LOGFILE%
 del /f "%PS_SCRIPT%" >> %LOGFILE%
@@ -418,7 +456,6 @@ if "!PYTHON_ERRORLEVEL!"=="0" if "!PIP_ERRORLEVEL!"=="0" (
 )
 
 :end
-echo Script ended. >> %LOGFILE%
+echo Script completed. >> %LOGFILE%
 pause
-exit
-endlocal
+exit /b
