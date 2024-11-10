@@ -2581,12 +2581,15 @@ def validate_api_key(api_key):
         tk.messagebox.showerror("Error", f"An error occurred during API key validation: {e}")
         return False
 
+def open_link(url):
+    import webbrowser
+    webbrowser.open(url)
+
 def prompt_api_key():
     global root
     root = tk.Tk()
     root.title("API Key Input")
-    root.geometry("300x150")
-    
+    root.geometry("400x200")
     root.configure(bg="#333333")
 
     style = ttk.Style()
@@ -2594,7 +2597,16 @@ def prompt_api_key():
     style.configure("Custom.TButton", foreground="white", background="#8B0000", font=("Helvetica", 12, "bold"))
     style.map("Custom.TButton", background=[("active", "#000000"), ("!active", "#8B0000")])
 
-    ttk.Label(root, text="Paste your Hetzner API key:", background=root['bg'], foreground="white").pack(pady=10)
+    instructions_text = tk.Text(root, bg="#333333", fg="white", wrap="word", relief="flat", font=("Helvetica", 10))
+    instructions_text.insert(tk.END, "To manage your cloud resources with HCloud, you'll need a Read/Write API key from your Hetzner Cloud account.\n\nThis link will walk you through setting an API Key up. (Just remember, it needs to be Read/Write): ")
+    instructions_text.tag_config("link", foreground="lightblue", underline=True)
+    instructions_text.tag_bind("link", "<Button-1>", lambda e: open_link("https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/"))
+    instructions_text.insert(tk.END, "Create a Hetzner API Key", "link")
+    instructions_text.insert(tk.END, "\n\nOnce you have your Hetzner API Key, paste it in the box below.")
+    instructions_text.config(state="disabled")
+    instructions_text.pack(pady=10, padx=10)
+
+    ttk.Label(root, text="Paste your Hetzner API key:", background=root['bg'], foreground="white").pack(pady=5)
 
     api_key_entry = ttk.Entry(root, show="*")
     api_key_entry.pack(pady=5)
@@ -2602,7 +2614,6 @@ def prompt_api_key():
 
     def on_submit():
         api_key = api_key_entry.get()
-
         if len(api_key) == 64 and api_key.isalnum():
             global log_window
             log_window = tk.Toplevel(root)
@@ -2613,17 +2624,16 @@ def prompt_api_key():
             log_text.pack(pady=10, padx=10)
 
             install_required_packages_in_thread(
-                log_text, 
-                lambda: on_installation_complete(root, api_key) if validate_api_key(api_key) else tk.messagebox.showwarning("Invalid API Key", "The API key provided is invalid or does not have the required permissions.")
+                log_text,
+                lambda: on_installation_complete(root, api_key) if validate_api_key(api_key) else messagebox.showwarning("Invalid API Key", "The API key provided is invalid or does not have the required permissions.")
             )
         else:
-            tk.messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
+            messagebox.showerror("Invalid API Key", "Invalid API key. Please enter a valid 64-character alphanumeric API key.")
 
     submit_button = ttk.Button(root, text="Submit", command=on_submit, style="Custom.TButton")
     submit_button.pack(pady=20)
 
     root.bind('<Return>', lambda event: on_submit())
-
     root.mainloop()
 
 if __name__ == "__main__":
