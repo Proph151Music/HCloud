@@ -98,7 +98,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
 
    **Script Behavior:**
    - The `HCloud_launcher.bat` file will check if you have Python and pip installed. If not, it will ask if you want the script to download and set them up for you automatically.
-   - If `HCloud_launcher.bat` detects that you already have Python and pip installed properly, it will ask if you'd like to launch the `hcmt.py` file.
+   - If `HCloud_launcher.bat` detects that you already have Python and pip installed properly, it will ask if you'd like to launch the `HCloud.py` file.
 
    **Direct Execution:**
    - Alternatively, if Python and pip are already installed and properly set up in the PATH, the `HCloud.py` file can be launched directly from a CMD prompt using the following command:
