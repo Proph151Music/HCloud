@@ -50,6 +50,39 @@ def ensure_python_and_brew(log_widget=None):
         else:
             print(f"Python version is sufficient: {python_version_output}")
 
+        # Ensure Tcl/Tk for tkinter
+        try:
+            if log_widget:
+                log_widget.insert(tk.END, "Ensuring Tcl/Tk for tkinter...\n")
+                log_widget.see(tk.END)
+
+            print("Installing Tcl/Tk...")
+            subprocess.check_call(["brew", "install", "tcl-tk"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Update environment variables for Tcl/Tk
+            os.environ["PATH"] = f"/opt/homebrew/opt/tcl-tk/bin:{os.environ.get('PATH', '')}"
+            os.environ["LDFLAGS"] = "-L/opt/homebrew/opt/tcl-tk/lib"
+            os.environ["CPPFLAGS"] = "-I/opt/homebrew/opt/tcl-tk/include"
+            os.environ["PKG_CONFIG_PATH"] = "/opt/homebrew/opt/tcl-tk/lib/pkgconfig"
+
+            print("Reinstalling Python to link Tcl/Tk...")
+            subprocess.check_call(["brew", "reinstall", "python"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Verify tkinter installation
+            try:
+                print("Verifying tkinter installation...")
+                subprocess.check_call(["python3", "-m", "tkinter"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print("Tkinter is successfully installed and verified.")
+            except subprocess.CalledProcessError:
+                raise RuntimeError("Tkinter verification failed after installation.")
+
+        except subprocess.CalledProcessError as e:
+            if log_widget:
+                log_widget.insert(tk.END, f"Error ensuring Tcl/Tk or tkinter: {e}\n")
+                log_widget.see(tk.END)
+            print(f"Error ensuring Tcl/Tk or tkinter: {e}")
+            sys.exit(1)
+            
 def configure_brew_path():
     """Ensure Homebrew is in the PATH for both zsh and bash users."""
     brew_path = "/opt/homebrew/bin"
@@ -233,6 +266,34 @@ ssh_var_dict = {}
 firewalls = []
 server_types = []
 locations = []
+
+class Tooltip:
+    """A simple tooltip that shows text when hovering over a widget."""
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        widget.bind("<Enter>", self.show_tooltip)
+        widget.bind("<Leave>", self.hide_tooltip)
+
+    def show_tooltip(self, event):
+        # Position the tooltip near the widget
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + 20
+
+        # Create a small window as the tooltip
+        self.tooltip_window = tk.Toplevel(self.widget)
+        self.tooltip_window.overrideredirect(True)  # Remove window decorations
+        self.tooltip_window.geometry(f"+{x}+{y}")
+
+        # Tooltip text
+        label = tk.Label(self.tooltip_window, text=self.text, background="#FFFFE0", relief="solid", borderwidth=1, font=("Helvetica", 8))
+        label.pack(ipadx=1)
+
+    def hide_tooltip(self, event):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
 
 def format_path(path):
     if os.name == 'nt':
@@ -2132,6 +2193,7 @@ def create_app_window(api_key):
     # Create Server Tab
     tk.Label(create_server_tab, text="Server Name:").grid(row=0, column=1, padx=5, pady=5, sticky='w')
     server_name_entry = tk.Entry(create_server_tab, width=33)
+    Tooltip(server_name_entry, "Type the name for your new server.\n(No spaces or special characters).")
     server_name_entry.grid(row=0, column=1, padx=(100, 0), pady=10, sticky='w')
     server_name_entry.insert(0, config.get("server_name", ""))
 
@@ -2141,6 +2203,7 @@ def create_app_window(api_key):
 
     # Server Location
     location_dropdown = ttk.Combobox(create_server_tab, textvariable=selected_location_var, values=[f"{loc['name']}: {loc['description']}" for loc in locations_sorted], width=30)
+    Tooltip(location_dropdown, "Select the location for your new server.\nThe available specs for that location will be visible below.\n\nRecommended specs at this time are:\nCPU's ........... 8\nRAM (Memory) .. 16GB\nStorage ................ 320GB\nTraffic ............... 10TB\n")
     location_dropdown.grid(row=1, column=1, padx=(100, 0), pady=10, sticky='w')
     location_dropdown.set(config.get("location", ""))
 
@@ -2628,6 +2691,7 @@ def prompt_api_key():
     link_label = tk.Label(instructions_frame, text="Create a Hetzner API Key", fg="lightblue", bg="#333333", cursor="hand2", font=("Helvetica", 10, "underline"))
     link_label.pack(pady=(5, 0))
     link_label.bind("<Button-1>", open_link)    
+    Tooltip(link_label, "https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/")
 
     # Label and entry box for API key input
     ttk.Label(root, text="Paste your Hetzner API key below:", background=root['bg'], foreground="white").grid(row=1, column=0, columnspan=2, pady=(5, 5), padx=(10, 5))
@@ -2636,9 +2700,12 @@ def prompt_api_key():
     api_key_entry.grid(row=2, column=0, columnspan=2, pady=(5, 5), padx=(10, 10), sticky="ew")
     api_key_entry.focus_set()
 
+    Tooltip(api_key_entry, "Paste the 64-character Hetzner API Key that you created with 'Read/Write' permissions.")
+
     # Submit button
     submit_button = ttk.Button(root, text="Submit", command=lambda: on_submit(api_key_entry.get()), style="Custom.TButton")
     submit_button.grid(row=3, column=0, columnspan=2, pady=(10, 15))
+    Tooltip(submit_button, "Click to submit your API Key and start setting up HCloud.")
 
     # Adjust grid weights for responsive resizing
     root.grid_rowconfigure(0, weight=1)
