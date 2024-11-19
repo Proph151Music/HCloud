@@ -3,11 +3,6 @@ import subprocess
 import sys
 import platform
 import re
-from tkinter import scrolledtext
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-import tkinter.simpledialog as simpledialog
-import tkinter.font as tkFont
 import logging
 import urllib.request
 import queue
@@ -50,39 +45,6 @@ def ensure_python_and_brew(log_widget=None):
         else:
             print(f"Python version is sufficient: {python_version_output}")
 
-        # Ensure Tcl/Tk for tkinter
-        try:
-            if log_widget:
-                log_widget.insert(tk.END, "Ensuring Tcl/Tk for tkinter...\n")
-                log_widget.see(tk.END)
-
-            print("Installing Tcl/Tk...")
-            subprocess.check_call(["brew", "install", "tcl-tk"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-            # Update environment variables for Tcl/Tk
-            os.environ["PATH"] = f"/opt/homebrew/opt/tcl-tk/bin:{os.environ.get('PATH', '')}"
-            os.environ["LDFLAGS"] = "-L/opt/homebrew/opt/tcl-tk/lib"
-            os.environ["CPPFLAGS"] = "-I/opt/homebrew/opt/tcl-tk/include"
-            os.environ["PKG_CONFIG_PATH"] = "/opt/homebrew/opt/tcl-tk/lib/pkgconfig"
-
-            print("Reinstalling Python to link Tcl/Tk...")
-            subprocess.check_call(["brew", "reinstall", "python"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-            # Verify tkinter installation
-            try:
-                print("Verifying tkinter installation...")
-                subprocess.check_call(["python3", "-m", "tkinter"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                print("Tkinter is successfully installed and verified.")
-            except subprocess.CalledProcessError:
-                raise RuntimeError("Tkinter verification failed after installation.")
-
-        except subprocess.CalledProcessError as e:
-            if log_widget:
-                log_widget.insert(tk.END, f"Error ensuring Tcl/Tk or tkinter: {e}\n")
-                log_widget.see(tk.END)
-            print(f"Error ensuring Tcl/Tk or tkinter: {e}")
-            sys.exit(1)
-            
 def configure_brew_path():
     """Ensure Homebrew is in the PATH for both zsh and bash users."""
     brew_path = "/opt/homebrew/bin"
@@ -97,6 +59,52 @@ def configure_brew_path():
         print("PATH updated and profile reloaded.")
 
 ensure_python_and_brew()
+
+def ensure_tkinter():
+    """Ensure tkinter is available."""
+    try:
+        # Try importing tkinter
+        import tkinter as tk
+        from tkinter import scrolledtext, ttk, messagebox, filedialog
+        import tkinter.simpledialog as simpledialog
+        import tkinter.font as tkFont
+        print("tkinter is available.")
+    except ImportError:
+        # If tkinter is missing, try to install it
+        print("tkinter not found. Attempting to install...")
+        if platform.system() == "Darwin":  # macOS
+            try:
+                # Install Tcl/Tk and Python dependencies using Homebrew
+                subprocess.check_call(["brew", "install", "tcl-tk"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.check_call(["brew", "reinstall", "python"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # Update environment variables for Tcl/Tk
+                os.environ["PATH"] = f"/opt/homebrew/opt/tcl-tk/bin:{os.environ.get('PATH', '')}"
+                os.environ["LDFLAGS"] = "-L/opt/homebrew/opt/tcl-tk/lib"
+                os.environ["CPPFLAGS"] = "-I/opt/homebrew/opt/tcl-tk/include"
+                os.environ["PKG_CONFIG_PATH"] = "/opt/homebrew/opt/tcl-tk/lib/pkgconfig"
+
+                # Verify tkinter installation
+                try:
+                    subprocess.check_call(["python3", "-m", "tkinter"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    print("tkinter is successfully installed.")
+                except subprocess.CalledProcessError:
+                    raise RuntimeError("Tkinter verification failed after installation.")
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to install Tcl/Tk or tkinter: {e}")
+                sys.exit(1)
+        else:
+            print("tkinter installation not automated for this OS. Please install it manually.")
+            sys.exit(1)
+
+# Ensure tkinter before proceeding
+ensure_tkinter()
+
+import tkinter as tk
+from tkinter import scrolledtext
+from tkinter import ttk, messagebox, filedialog
+import tkinter.simpledialog as simpledialog
+import tkinter.font as tkFont
 
 def requires_break_system_packages():
     try:
