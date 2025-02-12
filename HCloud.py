@@ -275,8 +275,14 @@ firewalls = []
 server_types = []
 locations = []
 
+import tkinter as tk
+
+import tkinter as tk
+
 class Tooltip:
-    """A simple tooltip that shows text when hovering over a widget."""
+    """A tooltip that tries to position above-centered, then below-centered,
+    and finally falls back to top-left if not fully visible.
+    Also forces itself on top and clamps coordinates to screen bounds."""
     def __init__(self, widget, text):
         self.widget = widget
         self.text = text
@@ -285,18 +291,73 @@ class Tooltip:
         widget.bind("<Leave>", self.hide_tooltip)
 
     def show_tooltip(self, event):
-        # Position the tooltip near the widget
-        x = self.widget.winfo_rootx() + 20
-        y = self.widget.winfo_rooty() + 20
-
-        # Create a small window as the tooltip
+        # Create the Toplevel offscreen so we can measure it
         self.tooltip_window = tk.Toplevel(self.widget)
-        self.tooltip_window.overrideredirect(True)  # Remove window decorations
-        self.tooltip_window.geometry(f"+{x}+{y}")
+        self.tooltip_window.withdraw()              # Hide for now
+        self.tooltip_window.overrideredirect(True)  # No window decorations
+        # Make it topmost so it won’t hide behind the main window:
+        self.tooltip_window.attributes("-topmost", True)
 
-        # Tooltip text
-        label = tk.Label(self.tooltip_window, text=self.text, background="#FFFFE0", relief="solid", borderwidth=1, font=("Helvetica", 8))
-        label.pack(ipadx=1)
+        label = tk.Label(
+            self.tooltip_window,
+            text=self.text,
+            background="#FFFFE0",
+            relief="solid",
+            borderwidth=1,
+            font=("Helvetica", 8)
+        )
+        label.pack(ipadx=1, ipady=1)
+
+        # Force geometry calculation
+        self.tooltip_window.update_idletasks()
+
+        # Tooltip size
+        tip_width = self.tooltip_window.winfo_width()
+        tip_height = self.tooltip_window.winfo_height()
+
+        # Identify the main GUI window (top-level) and its geometry
+        root_window = self.widget.winfo_toplevel()
+        root_window.update_idletasks()  # Ensure geometry is up to date
+
+        # Screen size
+        screen_width = root_window.winfo_screenwidth()
+        screen_height = root_window.winfo_screenheight()
+
+        # Main window position/size
+        main_x = root_window.winfo_rootx()
+        main_y = root_window.winfo_rooty()
+        main_w = root_window.winfo_width()
+        main_h = root_window.winfo_height()
+
+        # Offsets
+        offset = 20
+        extra_for_top_bar = 20  # Additional offset for the top bar if you want it higher
+
+        # 1) Try ABOVE & CENTERED
+        x_above = main_x + (main_w // 2) - (tip_width // 2)
+        y_above = main_y - tip_height - offset - extra_for_top_bar
+        if (x_above >= 0) and (y_above >= 0):
+            final_x, final_y = x_above, y_above
+        else:
+            # 2) If not above, try BELOW & CENTERED
+            x_below = main_x + (main_w // 2) - (tip_width // 2)
+            y_below = main_y + main_h + offset
+            if ((x_below + tip_width) <= screen_width) and ((y_below + tip_height) <= screen_height):
+                final_x, final_y = x_below, y_below
+            else:
+                # 3) Fallback: top-left, 50px from edges
+                final_x = 50
+                final_y = 50
+
+        # Clamp to screen, just in case
+        final_x = max(0, min(final_x, screen_width - tip_width))
+        final_y = max(0, min(final_y, screen_height - tip_height))
+
+        # Apply geometry and show
+        self.tooltip_window.geometry(f"+{final_x}+{final_y}")
+        self.tooltip_window.deiconify()  
+        # Lift again to ensure it's above the main window
+        self.tooltip_window.lift()
 
     def hide_tooltip(self, event):
         if self.tooltip_window:
@@ -1581,11 +1642,20 @@ def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, 
     process_log_thread = threading.Thread(target=process_log_queue, args=(status_text, log_queue))
     process_log_thread.start()
 
-def download_nodectl(client, nodectl_version, log_queue):
-    install_command = (
-        f'sudo wget -N https://github.com/stardustcollective/nodectl/releases/download/{nodectl_version}/nodectl_x86_64 '
-        f'-P /usr/local/bin -O /usr/local/bin/nodectl && sudo chmod +x /usr/local/bin/nodectl'
-    )
+def download_nodectl(client, nodectl_version, log_queue, distribution="ubuntu-22.04"):
+    if distribution == "ubuntu-24.04":
+        install_command = (
+            f'sudo nodectl auto_restart disable; '
+            f'wget -N https://github.com/stardustcollective/nodectl/releases/download/{nodectl_version}/nodectl_x86_64_2404 '
+            f'-P /usr/local/bin -O /usr/local/bin/nodectl && sudo chmod +x /usr/local/bin/nodectl'
+        )
+    else:
+        install_command = (
+            f'sudo nodectl auto_restart disable; '
+            f'wget -N https://github.com/stardustcollective/nodectl/releases/download/{nodectl_version}/nodectl_x86_64 '
+            f'-P /usr/local/bin -O /usr/local/bin/nodectl && sudo chmod +x /usr/local/bin/nodectl'
+        )
+
     max_retries = 3
     for attempt in range(max_retries):
         # Attempt download
@@ -1597,7 +1667,7 @@ def download_nodectl(client, nodectl_version, log_queue):
         if "502 Bad Gateway" not in stderr_output:
             return True
         time.sleep(10)
-    
+
     # Only log a final failure message
     log_queue.put("Failed to download nodectl after multiple attempts.\n")
     return False
@@ -1753,10 +1823,35 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
 
             # Check if tmux is installed
             stdin, stdout, stderr = client.exec_command('command -v tmux')
-            if not stdout.read().decode('utf-8').strip():
+            tmux_path = stdout.read().decode('utf-8').strip()
+            if not tmux_path:
                 log_queue.put("\ntmux not found. Installing tmux...\n")
-                client.exec_command('sudo apt-get update && sudo apt-get install -y tmux')
-                log_queue.put("tmux installed successfully.\n\n")
+
+                # Run apt-get and wait for exit status
+                stdin, stdout, stderr = client.exec_command('sudo apt-get update && sudo apt-get install -y tmux')
+                # Block until command finishes
+                stdout.channel.recv_exit_status()
+
+                # Log any stderr output for debugging
+                err_msg = stderr.read().decode('utf-8').strip()
+                if err_msg:
+                    log_queue.put(f"tmux install stderr:\n{err_msg}\n")
+
+                log_queue.put("tmux installed. Rechecking...\n")
+
+                # Check again if tmux is now installed
+                client.close()  # Reconnect
+                client.connect(hostname=server_ip, username='root', pkey=private_key)
+
+                stdin, stdout, stderr = client.exec_command('command -v tmux')
+                tmux_path = stdout.read().decode('utf-8').strip()
+                if not tmux_path:
+                    log_queue.put("ERROR: tmux still not found after installation. Aborting.\n")
+                    return
+                else:
+                    log_queue.put(f"tmux installed at: {tmux_path}\n")
+            else:
+                log_queue.put(f"tmux already installed at {tmux_path}\n")
 
             # Check if nodectl is already installed
             stdin, stdout, stderr = client.exec_command('test -f /usr/local/bin/nodectl && echo found')
@@ -1766,13 +1861,7 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
 
             log_queue.put("nodectl not found. Proceeding with installation...\n")
 
-            # Get the latest nodectl version
-            # nodectl_version = get_latest_nodectl_version()
-            # nodectl_version = "v2.15.0"
-            # log_queue.put(f"Latest nodectl version: {nodectl_version}\n")
-            # log_queue.put(f"Using nodectl version: {nodectl_version}\n")
-
-            # Download nodectl using the download_nodectl function
+            # Download nodectl
             if not download_nodectl(client, nodectl_version, log_queue):
                 return
 
@@ -1782,17 +1871,15 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 "then echo 'nodectl is installed and executable'; "
                 "else echo 'nodectl download failed'; fi"
             )
-            # log_queue.put(f"Verifying installation with command: {verify_command}\n")
             stdin, stdout, stderr = client.exec_command(verify_command)
             verify_output = stdout.read().decode('utf-8')
-
             if "nodectl is installed and executable" in verify_output:
                 log_queue.put("nodectl verified as downloaded and executable.\n")
             else:
                 log_queue.put("nodectl download failed. Please check the logs for details.\n")
                 return
 
-            # Re-login to the server to ensure a fresh session
+            # Re-login to ensure a fresh session
             client.close()
             client.connect(hostname=server_ip, username='root', pkey=private_key)
 
@@ -1804,7 +1891,7 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 sftp.close()
                 log_queue.put("P12 file uploaded successfully.\n")
 
-            # Re-login to ensure the session is clean for the final command
+            # Re-login
             client.close()
             client.connect(hostname=server_ip, username='root', pkey=private_key)
 
@@ -1812,53 +1899,61 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             node_userpass_escaped = node_userpass.replace('$', '\\$')
             p12_passphrase_escaped = p12_passphrase.replace('$', '\\$')
 
-            # Construct the nodectl install command within tmux
-            nodectl_install_command = (
-                f"tmux new-session -d -s nodectl_install \"tmux resize-window -t nodectl_install -x 120 -y 40; "
-                f"sudo /usr/local/bin/nodectl install --quick-install "
-                f"--user '{node_username}' "
-                f"--user-password '{node_userpass_escaped}' "
-                f"--p12-passphrase '{p12_passphrase_escaped}' "
-                f"--cluster-config '{network}' "
-            )
-
-            if p12_file:
-                nodectl_install_command += f"--p12-migration-path '/root/{os.path.basename(p12_file)}' "
-
-            # Determine nprofile based on network
+            # Determine nprofile
             if network in ["mainnet", "testnet"]:
                 nprofile = "dag-l0"
             elif network == "integrationnet":
                 nprofile = "intnet-l0"
             else:
                 nprofile = "error-l0"
+
+            # Use the absolute path to tmux in commands
+            if not tmux_path:
+                tmux_path = "/usr/bin/tmux"  # fallback if something goes wrong
+
+            # Construct the nodectl install command using the absolute tmux path
+            nodectl_install_command = (
+                f"{tmux_path} new-session -d -s nodectl_install \""
+                f"{tmux_path} resize-window -t nodectl_install -x 120 -y 40; "
+                f"sudo /usr/local/bin/nodectl install --quick-install "
+                f"--user '{node_username}' "
+                f"--user-password '{node_userpass_escaped}' "
+                f"--p12-passphrase '{p12_passphrase_escaped}' "
+                f"--cluster-config '{network}' "
+            )
+            if p12_file:
+                nodectl_install_command += f"--p12-migration-path '/root/{os.path.basename(p12_file)}' "
+
             
-            nodectl_install_command += f"--confirm; sudo nodectl nodeid -p {nprofile}\""
+            nodectl_install_command += f"--skip-system-validation --confirm; sudo nodectl nodeid -p {nprofile}\""
 
             log_queue.put(f"\nExecuting nodectl install...\n")
-            ## log_queue.put(f"\n{nodectl_install_command}\n\n")
             stdin, stdout, stderr = client.exec_command(nodectl_install_command)
 
             # Capture and log output
             stdout_output = stdout.read().decode('utf-8')
             stderr_output = stderr.read().decode('utf-8')
-
             if stdout_output:
                 log_queue.put(f"STDOUT:\n{stdout_output}\n")
-
             if stderr_output:
                 log_queue.put(f"STDERR:\n{stderr_output}\n")
 
-            # Tail the nodectl.log file and write it to the status box
-            log_file_path = '/var/tessellation/nodectl/nodectl.log'
-            log_queue.put(f"Monitoring the nodectl.log at {log_file_path}...\n")
+            log_file_path = None
+            possible_log_paths = [
+                "/var/tessellation/nodectl/logs/nodectl.log",
+                "/var/tessellation/nodectl/nodectl.log"
+            ]
 
-            while True:
-                stdin, stdout, stderr = client.exec_command(f'test -f {log_file_path} && echo exists')
-                if 'exists' in stdout.read().decode('utf-8'):
-                    log_queue.put("nodectl.log file detected. Tailing log...\n\n")
-                    break
-                time.sleep(2)
+            log_queue.put(f"Waiting for the nodectl.log file to start processing...\n")
+            while not log_file_path:
+                for path in possible_log_paths:
+                    stdin, stdout, stderr = client.exec_command(f'test -f {path} && echo exists')
+                    if 'exists' in stdout.read().decode('utf-8'):
+                        log_file_path = path
+                        log_queue.put(f"nodectl.log file detected at {log_file_path}.\n")
+                        break
+                if not log_file_path:
+                    time.sleep(2)
             
             # Tail the log file and write it to the status box
             def tail_log():
@@ -1869,36 +1964,29 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 stdin, stdout, stderr = local_client.exec_command(f'tail -f {log_file_path}')
 
                 installation_complete = False
-
                 for line in iter(stdout.readline, ""):
                     log_queue.put(line)
 
-                    # Check if installation complete message is found
                     if "INFO : Installation complete !!!" in line:
                         log_queue.put("\nnodectl installation process completed.\n\n")
                         installation_complete = True
-                    
-                    # Check if the line with "link key found," is found and extract node ID
                     elif "link key found," in line:
                         nodeid = line.split()[-1].strip("[]")
                         log_queue.put(f"\nNode ID found: {nodeid}\n\n")
 
-                    # If both installation completion and node ID have been found, break the loop
                     if installation_complete and nodeid:
                         break
 
                 # End the tmux session
-                local_client.exec_command('tmux kill-session -t nodectl_install')
+                local_client.exec_command(f"{tmux_path} kill-session -t nodectl_install")
                 local_client.close()
 
             tail_thread = threading.Thread(target=tail_log)
             tail_thread.daemon = True
             tail_thread.start()
-                
-            # Wait for the tail_thread to finish if necessary
             tail_thread.join()
 
-            # Update username to node_username
+            # Update username
             username = node_username
 
             # Get the SSH key path
@@ -1907,13 +1995,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             # Construct the SSH and SFTP commands
             ssh_command = f'ssh -i "{ssh_key_path}" {username}@{server_ip}'
             sftp_command = f'sftp -i "{ssh_key_path}" {username}@{server_ip}'
-
-            # # Read firewall info from the existing server info file
-            # firewall_name, firewall_rules = read_firewall_info_from_file(server_name)
-            # if not firewall_name:
-            #     firewall_name = ''
-            # if not firewall_rules:
-            #     firewall_rules = []
 
             # Save server information to file
             ssh_config_file = save_server_info(server_name, server_ip, ssh_key_path, username)
@@ -1929,18 +2010,15 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             # Export to PuTTY if selected and on Windows
             if export_to_putty and os.name == 'nt':
                 log_queue.put("Exporting server details to PuTTY...\n")
-                # Call the function to export server details
                 export_server_settings_to_putty(server_name, server_ip, ssh_key, ssh_passphrase, node_username, log_queue)
 
             # Show messagebox with information and hyperlink to open the file
             def show_message():
-                # Create a custom dialog window
                 message_window = tk.Toplevel(parent_window)
                 message_window.title("Installation Complete")
 
-                # Main message label
-                main_message = f"nodectl has completed installing successfully on server '{server_name}'.\n\n"
-                main_message += f"Server information updated in:\n{ssh_config_file}\n\n"
+                main_message = (f"nodectl has completed installing successfully on server '{server_name}'.\n\n"
+                                f"Server information updated in:\n{ssh_config_file}\n\n")
                 if nodeid:
                     main_message += "Node ID:\nClick inside the box below to copy."
 
@@ -1951,7 +2029,7 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 if nodeid:
                     nodeid_entry = tk.Entry(message_window, width=70, font=("Arial", 12))
                     nodeid_entry.insert(0, nodeid)
-                    nodeid_entry.config(state="readonly")  # Make it read-only
+                    nodeid_entry.config(state="readonly")
                     nodeid_entry.pack(pady=10)
 
                     # Copy on click event
@@ -1961,19 +2039,16 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                         parent_window.update()
                         tk.messagebox.showinfo("Copied", "Node ID has been copied to the clipboard.")
 
-                    # Bind click event to copy the Node ID
                     nodeid_entry.bind("<Button-1>", copy_nodeid)
 
-                # Buttons frame
                 buttons_frame = tk.Frame(message_window)
                 buttons_frame.pack(pady=20)
 
-                # Yes button to open the server info file
                 def open_server_info():
                     if os.name == 'nt':
                         os.startfile(ssh_config_file)
                     else:
-                        if platform.system() == "Darwin":  # macOS
+                        if platform.system() == "Darwin":
                             subprocess.call(['open', ssh_config_file])
                         elif platform.system() == "Linux":
                             subprocess.call(['xdg-open', ssh_config_file])
@@ -1982,11 +2057,9 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 yes_button = tk.Button(buttons_frame, text="Open Server Config File", command=open_server_info)
                 yes_button.pack(side="left", padx=10)
 
-                # No/Close button
                 close_button = tk.Button(buttons_frame, text="Close", command=message_window.destroy)
                 close_button.pack(side="right", padx=10)
 
-                # Center the window
                 message_window.geometry("+%d+%d" % (parent_window.winfo_rootx() + 50, parent_window.winfo_rooty() + 50))
                 message_window.transient(parent_window)
                 message_window.grab_set()
@@ -2215,6 +2288,19 @@ def create_app_window(api_key):
     location_dropdown.grid(row=1, column=1, padx=(100, 0), pady=10, sticky='w')
     location_dropdown.set(config.get("location", ""))
 
+    # Distribution Label & Dropdown
+    tk.Label(create_server_tab, text="Distribution:").grid(row=3, column=1, padx=5, pady=5, sticky='w')
+    distribution_var = tk.StringVar(value="ubuntu-22.04")
+    distribution_dropdown = ttk.Combobox(
+        create_server_tab,
+        textvariable=distribution_var,
+        values=["ubuntu-22.04", "ubuntu-24.04", "debian-12"],
+        width=30
+    )
+    distribution_dropdown.grid(row=3, column=1, padx=(100, 0), pady=10, sticky='w')
+    distribution_dropdown.set("ubuntu-22.04")
+
+
     # tk.Label(create_server_tab, text="Server Specs:").grid(row=2, column=1, padx=5, pady=0, sticky='w')
 
     specs_frame = tk.Frame(create_server_tab)
@@ -2340,7 +2426,7 @@ def create_app_window(api_key):
         create_server(api_key, 
                 server_name_entry.get(), 
                 specs_tree.item(specs_tree.selection())['values'][0], 
-                "ubuntu-22.04", 
+                distribution_var.get(), 
                 selected_location_var.get().split(":")[0].strip(), 
                 firewall_id, 
                 selected_ssh.get(),
@@ -2718,6 +2804,11 @@ def prompt_api_key():
     # Adjust grid weights for responsive resizing
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
+    
+    # Hide the console window (only on Windows)
+    if os.name == "nt":
+        import ctypes
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
     def on_submit(api_key):
         if len(api_key) == 64 and api_key.isalnum():
