@@ -28,7 +28,6 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 ## Prerequisites
 - A **Hetzner Cloud account**.
 - A **Read/Write API key** from your Hetzner account.
-- **Python 3.6+** installed on your machine.
 
 ### Installing Python (If you don’t have it already)
 
@@ -97,14 +96,10 @@ You will need this key when you first run HCloud to connect the tool to your Het
    - Run the `HCloud_launcher.bat` file by double clicking on it.
 
    **Script Behavior:**
-   - The `HCloud_launcher.bat` file will check if you have Python and pip installed. If not, it will ask if you want the script to download and set them up for you automatically.
-   - If `HCloud_launcher.bat` detects that you already have Python and pip installed properly, it will ask if you'd like to launch the `HCloud.py` file.
+   - The `HCloud_launcher.bat` file will ask you if it can download a portable version of python if it hasn't already created the local_env.
+   - If `HCloud_launcher.bat` detects that you already have the portable Python and pip downloaded properly, it will ask if you'd like to launch the `HCloud.py` file.
 
-   **Direct Execution:**
-   - Alternatively, if Python and pip are already installed and properly set up in the PATH, the `HCloud.py` file can be launched directly from a CMD prompt using the following command:
-     ```sh
-     python HCloud.py
-     ```
+   - You should always use `HCloud_Launcher.bat` to execute HCloud on Windows for the best results.
 ---------------------------------------------------------------------------------
 
 ### macOS
