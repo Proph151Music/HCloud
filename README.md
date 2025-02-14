@@ -19,7 +19,7 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 - [Installation](#installation)
   - [Windows](#windows)
   - [macOS](#macos)
-  - [Ubuntu Desktop](#ubuntu-desktop)
+  - [Ubuntu Desktop](#ubuntu)
   - [ChromeOS](#chromeos)
 - [How to Use HCloud](#how-to-use-hcloud)
   - [Installing nodectl](#installing-nodectl)
