@@ -19,7 +19,7 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 - [Installation](#installation)
   - [Windows](#windows)
   - [macOS](#macos)
-  - [Linux](#linux)
+  - [Ubuntu Desktop](#ubuntu-desktop)
   - [ChromeOS](#chromeos)
 - [How to Use HCloud](#how-to-use-hcloud)
   - [Installing nodectl](#installing-nodectl)
@@ -43,7 +43,7 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
      - Continue to the [Installation](#installation) section and follow the macOS instructions.
 ---------------------------------------------------------------------------------
 
-- **Linux**: 
+- **Ubuntu Desktop**: 
   - Use your package manager to install Python:
    ```bash
    sudo apt update && sudo apt install python3
