@@ -115,7 +115,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
    ```
 ---------------------------------------------------------------------------------
 
-### Linux
+### Ubuntu Desktop
 
 1. Open your **Terminal**.
 2. Download the file using:
