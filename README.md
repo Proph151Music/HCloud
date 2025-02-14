@@ -40,7 +40,7 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
    ```bash
    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && brew update && brew install python && python3 --version | grep -q '^Python 3\.[1-9][3-9]' || echo "Python version below 3.13, consider updating."
    ```
-     - Continue to the [Installation](#installation) section and follow the macOS instructions.
+     - Continue to the Installation section and follow the [macOS](#macos) instructions.
 ---------------------------------------------------------------------------------
 
 - **Ubuntu Desktop**: 
