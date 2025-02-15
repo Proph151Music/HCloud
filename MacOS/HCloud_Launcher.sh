@@ -25,10 +25,10 @@ ESC="$(printf '\033')"
 BOLD="${ESC}[1m"
 RESET="${ESC}[0m"
 GREEN="${ESC}[1;32m"
-YELLOW="${ESC}[1;33m"
-RED="${ESC}[1;31m"
-CYAN="${ESC}[1;36m"
-BLUE="${ESC}[1;34m"
+YELLOW="${ESC}[1;33m}"
+RED="${ESC}[1;31m}"
+CYAN="${ESC}[1;36m}"
+BLUE="${ESC}[1;34m}"
 
 LOGFILE="$(pwd)/HCloud_launcher.log"
 
@@ -80,7 +80,6 @@ function python_version_ok() {
   # Compare with 3.13.2
   local required="3.13.2"
 
-  # Convert to sortable integer, e.g. 3.13.2 => 3001302
   function ver_to_int() {
     local major minor micro
     IFS='.' read -r major minor micro <<< "$1"
@@ -97,21 +96,19 @@ function python_version_ok() {
 
 sys_python="$(command -v python3 || true)"
 
-# Function to detect if the found python3 is a stub version.
-# It does so by checking the sys.executable path.
-function python_is_stub() {
-  local exe
-  exe=$("$1" -c 'import sys; print(sys.executable)' 2>/dev/null)
-  if [[ "$exe" == "/usr/bin/python3" ]]; then
-    return 0
-  else
-    return 1
-  fi
-}
+if [ -z "$sys_python" ] || [ "$sys_python" = "/usr/bin/python3" ]; then
+  log "No suitable Python3 found or a stub version is in use."
+  INSTALL_PYTHON=true
+elif ! python_version_ok "$sys_python"; then
+  log "Python found at: $sys_python but its version is lower than 3.13.2."
+  INSTALL_PYTHON=true
+else
+  log "Python >= 3.13.2 found at: $sys_python"
+  PY_CMD="$sys_python"
+  INSTALL_PYTHON=false
+fi
 
-# Determine if python3 is either missing, a stub, or its version is insufficient.
-if [ -z "$sys_python" ] || python_is_stub "$sys_python" || ! python_version_ok "$sys_python"; then
-  log "A suitable Python (>=3.13.2) was NOT found or a stub version is in use."
+if $INSTALL_PYTHON; then
   echo
   echo "${BOLD}${BLUE}We can automatically download & install Python 3.13.2 from python.org.${RESET}"
   echo "This step requires an admin password. The installer is ~25MB."
@@ -157,9 +154,6 @@ if [ -z "$sys_python" ] || python_is_stub "$sys_python" || ! python_version_ok "
       exit 1
       ;;
   esac
-else
-  log "Python >= 3.13.2 found at: $sys_python"
-  PY_CMD="$sys_python"
 fi
 
 ################################################################################
