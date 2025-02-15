@@ -12,6 +12,7 @@ import ipaddress
 import webbrowser
 import shlex
 import csv
+import shutil
 
 root = None
 restart_required = False
@@ -403,7 +404,7 @@ def read_firewall_info_from_file(server_name):
 
     return firewall_name, firewall_rules
 
-def save_server_info(server_name, server_ip, ssh_key_path, username):
+def save_server_info(server_name, server_ip, ssh_key_path, username, network):
     # Create SERVERS folder if it doesn't exist
     servers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SERVERS', server_name)
     os.makedirs(servers_dir, exist_ok=True)
@@ -421,14 +422,8 @@ def save_server_info(server_name, server_ip, ssh_key_path, username):
         f"    User {username}",
         f"    IdentityFile {formatted_ssh_key_path}",
         "    Port 22",
-        "",  # Empty line for readability
-        # "# Firewall Name: {}".format(firewall_name),
-        # "# Firewall Rules:",
+        "",
     ]
-
-    # # Add firewall rules as comments
-    # for rule in firewall_rules:
-    #     ssh_config_lines.append(f"# {rule}")
 
     # Add commands as comments
     ssh_command = f"ssh -i {formatted_ssh_key_path} {username}@{server_ip}"
@@ -445,12 +440,28 @@ def save_server_info(server_name, server_ip, ssh_key_path, username):
     with open(ssh_config_file_path, 'w') as f:
         f.write('\n'.join(ssh_config_lines))
 
-    csv_file_path = os.path.join(servers_dir, f"{server_name}_termius.csv")
-    
-    with open(csv_file_path, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Host", "HostName", "User", "Port", "IdentityFile"])
-        writer.writerow([server_name, server_ip, username, "22", formatted_ssh_key_path])
+    # --- Create a duplicate (hard link if possible) in the user's .ssh folder ---
+    user_ssh_dir = os.path.join(os.path.expanduser("~"), ".ssh")
+    os.makedirs(user_ssh_dir, exist_ok=True)
+    destination_path = os.path.join(user_ssh_dir, f"{server_name}_ssh_config.txt")
+
+    # Remove the destination file if it exists
+    if os.path.exists(destination_path):
+        os.remove(destination_path)
+
+    try:
+        # Attempt to create a hard link
+        os.link(ssh_config_file_path, destination_path)
+    except Exception as e:
+        # If hard link fails (e.g., on some Windows setups), fallback to copying the file
+        shutil.copy2(ssh_config_file_path, destination_path)
+
+    # Chreate an importable termius.csv (But no ssh is imorted)
+    # csv_file_path = os.path.join(servers_dir, f"{server_name}_termius.csv")
+    # with open(csv_file_path, 'w', newline='') as csvfile:
+    #     writer = csv.writer(csvfile)
+    #     writer.writerow(["Groups", "Label", "Tags", "Hostname/IP", "Protocol", "Port"])
+    #     writer.writerow(["Nodes/DAG", server_name, network, server_ip, "ssh", "22"])
     
     # Return the path to the SSH config file
     return ssh_config_file_path
@@ -1319,7 +1330,7 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
         firewall_details = get_firewall_details(api_key, firewall_id)
 
         # Save server information to file
-        server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username)
+        server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username, "")
 
         # Show messagebox with information and option to open the file
         message_text = f"Server '{server_name}' created successfully.\n\nServer information saved to:\n{server_info_file}"
@@ -2003,7 +2014,7 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             sftp_command = f'sftp -i "{ssh_key_path}" {username}@{server_ip}'
 
             # Save server information to file
-            ssh_config_file = save_server_info(server_name, server_ip, ssh_key_path, username)
+            ssh_config_file = save_server_info(server_name, server_ip, ssh_key_path, username, network)
 
             if create_shortcuts:
                 if os.name == 'nt':
