@@ -2593,12 +2593,13 @@ def create_app_window(api_key):
     )
     p12_file_button.grid(row=0, column=2, padx=5, sticky='w')
 
-    create_shortcuts_checkbox = tk.Checkbutton(
-        install_nodectl_tab,
-        text="Create SSH & SFTP Desktop Shortcuts", # if os.name == 'nt' else "Create SSH & SFTP Aliases",
-        variable=create_shortcuts_var
-    )
-    create_shortcuts_checkbox.grid(row=5, column=1, padx=50, pady=0, sticky='w')
+    if os.name == 'nt':
+        create_shortcuts_checkbox = tk.Checkbutton(
+            install_nodectl_tab,
+            text="Create SSH & SFTP Desktop Shortcuts",
+            variable=create_shortcuts_var
+        )
+        create_shortcuts_checkbox.grid(row=5, column=1, padx=50, pady=0, sticky='w')
 
     if os.name == 'nt':
         # Create the checkbox
