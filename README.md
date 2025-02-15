@@ -28,7 +28,6 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
   - [ChromeOS](#chromeos)
 - [How to Use HCloud](#how-to-use-hcloud)
   - [Creating a Hetzner API Key](#creating-a-hetzner-api-key)
-  - [Installing nodectl](#installing-nodectl)
 - [Acknowledgments](#acknowledgments)
 
 ---------------------------------------------------------------------------------
@@ -159,15 +158,6 @@ This link will walk you through setting an API Key up. (Just remember, it needs 
 4. **Copy the API key**: The key will only be shown once. Copy it and store it securely.
 
 You will need this key when you first run HCloud to connect the tool to your Hetzner Cloud account.
----------------------------------------------------------------------------------
-
-### Installing nodectl
-
-HCloud also provides the ability to install **nodectl**, on your Hetzner servers.
-
-1. **Select a server**: Choose an existing server in your Hetzner Cloud.
-2. **Configure nodectl**: Enter necessary details like the network (mainnet, integrationnet, testnet, etc.), the node username to setup, upload/import an optional P12 file.
-3. **Install nodectl**: Click the "Install nodectl" button, and HCloud will handle the rest. You’ll be able to monitor the installation process in the log window.
 ---------------------------------------------------------------------------------
 
 ## Acknowledgments
