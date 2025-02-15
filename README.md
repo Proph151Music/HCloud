@@ -32,15 +32,11 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 ### Installing Python (If you don’t have it already)
 
 - **Windows**: 
-  - Skip to the [Installation](#installation) section and follow the Windows instructions.
+  - Skip to the Installation section and follow the [Windows](#windows) instructions.
 ---------------------------------------------------------------------------------
   
 - **macOS**:
-  - Python comes pre-installed. You can update it with homebrew by sending this command inside Terminal:
-   ```bash
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && brew update && brew install python && python3 --version | grep -q '^Python 3\.[1-9][3-9]' || echo "Python version below 3.13, consider updating."
-   ```
-     - Continue to the Installation section and follow the [macOS](#macos) instructions.
+  - Skip to the Installation section and follow the [macOS](#macos) instructions.
 ---------------------------------------------------------------------------------
 
 - **Ubuntu Desktop**: 
@@ -105,13 +101,17 @@ You will need this key when you first run HCloud to connect the tool to your Het
 ### macOS
 
 1. Open **Terminal**.
-2. Download the file using:
+2. Download the HCloud_Launcher.sh using:
    ```bash
-   curl -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/HCloud.py
+   curl -L -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/MacOS/HCloud_Launcher.sh
    ```
-3. Run the script:
+3. Make sure the HCloud_Launcher.sh file is executable:
    ```bash
-   python3 -m venv venv && source venv/bin/activate && python HCloud.py
+   chmod +x HCloud_Launcher.sh
+   ```
+5. Run the script:
+   ```bash
+   python3 HCloud.py
    ```
 ---------------------------------------------------------------------------------
 
