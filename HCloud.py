@@ -11,6 +11,7 @@ import time
 import ipaddress
 import webbrowser
 import shlex
+import csv
 
 root = None
 restart_required = False
@@ -277,8 +278,6 @@ locations = []
 
 import tkinter as tk
 
-import tkinter as tk
-
 class Tooltip:
     """A tooltip that tries to position above-centered, then below-centered,
     and finally falls back to top-left if not fully visible.
@@ -446,6 +445,13 @@ def save_server_info(server_name, server_ip, ssh_key_path, username):
     with open(ssh_config_file_path, 'w') as f:
         f.write('\n'.join(ssh_config_lines))
 
+    csv_file_path = os.path.join(servers_dir, f"{server_name}_termius.csv")
+    
+    with open(csv_file_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Host", "HostName", "User", "Port", "IdentityFile"])
+        writer.writerow([server_name, server_ip, username, "22", formatted_ssh_key_path])
+    
     # Return the path to the SSH config file
     return ssh_config_file_path
 
@@ -2578,7 +2584,7 @@ def create_app_window(api_key):
 
     create_shortcuts_checkbox = tk.Checkbutton(
         install_nodectl_tab,
-        text="Create SSH & SFTP Desktop Shortcuts" if os.name == 'nt' else "Create SSH & SFTP Aliases",
+        text="Create SSH & SFTP Desktop Shortcuts", # if os.name == 'nt' else "Create SSH & SFTP Aliases",
         variable=create_shortcuts_var
     )
     create_shortcuts_checkbox.grid(row=5, column=1, padx=50, pady=0, sticky='w')
