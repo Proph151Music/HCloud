@@ -5,9 +5,10 @@
 # PURPOSE:
 #   1) Check if Python >= 3.13.2 is installed. If not (or if only a stub is found),
 #      prompt to install from python.org.
-#   2) Check if dependencies (paramiko, cryptography, packaging, requests)
+#   2) After installing/updating Python, install certificates if needed.
+#   3) Check if dependencies (paramiko, cryptography, packaging, requests)
 #      are installed; install only missing ones.
-#   3) Ask user if they want to launch HCloud. If yes, check for HCloud.py locally;
+#   4) Ask user if they want to launch HCloud. If yes, check for HCloud.py locally;
 #      if missing, download it from GitHub. Then run HCloud.py.
 #
 # This script:
@@ -20,14 +21,13 @@
 #
 ###############################################################################
 
-# --------------------- ANSI Escape Sequences -----------------------
 ESC="$(printf '\033')"
 BOLD="${ESC}[1m"
 RESET="${ESC}[0m"
 GREEN="${ESC}[1;32m"
 YELLOW="${ESC}[1;33m"
-RED="${ESC}[1;31m"
-CYAN="${ESC}[1;36m"
+RED="${ESC}[1;31m}"
+CYAN="${ESC}[1;36m}"
 BLUE="${ESC}[1;34m}"
 
 LOGFILE="$(pwd)/HCloud_launcher.log"
@@ -40,17 +40,14 @@ function logOnly() {
   echo "$*" >> "$LOGFILE"
 }
 
-# Force script to run in its own directory
 cd "$(dirname "$0")"
 
-# Clear old log if it exists
 if [ -f "$LOGFILE" ]; then
   rm "$LOGFILE"
 fi
 logOnly "Starting HCloud launcher..."
 logOnly "Log file location: $LOGFILE"
 
-# Check OS
 if [[ "$(uname -s)" != "Darwin" ]]; then
   log "Error: This script is intended for macOS only."
   exit 1
@@ -63,9 +60,6 @@ echo "HCloud uses a secure setup that installs only what's needed to run HCloud.
 echo "It can be removed at any time."
 echo
 
-################################################################################
-# Step 1: Check if Python >= 3.13.2 is present
-################################################################################
 function python_version_ok() {
   local py_cmd="$1"
   if [ -z "$py_cmd" ]; then
@@ -77,7 +71,6 @@ function python_version_ok() {
     return 1
   fi
 
-  # Compare with 3.13.2
   local required="3.13.2"
 
   function ver_to_int() {
@@ -94,12 +87,10 @@ function python_version_ok() {
   (( actual_int >= required_int ))
 }
 
-# Locate python3 using command -v
 sys_python="$(command -v python3 || true)"
 INSTALL_PYTHON=false
 
 if [ -z "$sys_python" ]; then
-  # No python3 in PATH.
   INSTALL_PYTHON=true
 elif [ "$sys_python" = "/usr/bin/python3" ]; then
   if [ -f "/Applications/Xcode.app/Contents/Developer/usr/bin/python3" ]; then
@@ -167,9 +158,15 @@ else
   PY_CMD="$sys_python"
 fi
 
-################################################################################
-# Step 2: Ensure pip is present and up to date
-################################################################################
+CERT_INSTALLER="/Applications/Python 3.13/Install Certificates.command"
+if [ -f "$CERT_INSTALLER" ]; then
+  log "Found certificate installer at $CERT_INSTALLER. Running it..."
+  bash "$CERT_INSTALLER" >> "$LOGFILE" 2>&1
+  log "Certificates installed."
+else
+  log "Certificate installer not found; skipping certificate installation."
+fi
+
 echo
 echo "${BOLD}Checking pip installation...${RESET}"
 "$PY_CMD" -m pip --version >> "$LOGFILE" 2>&1
@@ -190,10 +187,6 @@ if [ $? -ne 0 ]; then
 fi
 logOnly "pip is set up and upgraded."
 
-################################################################################
-# Step 3: Install only missing dependencies
-#         (paramiko, cryptography, packaging, requests)
-################################################################################
 REQ_PKGS=("paramiko" "cryptography" "packaging" "requests")
 
 function package_installed() {
@@ -224,9 +217,6 @@ done
 logOnly "All required packages are installed."
 clear
 
-################################################################################
-# Step 4: Offer to Launch HCloud
-################################################################################
 echo
 echo "${BOLD}${BLUE}==========================================================================${RESET}"
 echo "${BOLD}${BLUE}             Welcome to the HCloud Graphical User Interface${RESET}"
