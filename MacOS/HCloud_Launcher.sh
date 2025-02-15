@@ -3,15 +3,16 @@
 # HCloud_Launcher.sh
 #
 # PURPOSE:
-#   1) Check if Python >= 3.13.2 is installed. If not, prompt to install from python.org.
-#   2) Check if dependencies (paramiko, cryptography, packaging, requests) are installed.
-#      Only install missing ones.
+#   1) Check if Python >= 3.13.2 is installed. If not (or if a stub is found),
+#      prompt to install from python.org.
+#   2) Check if dependencies (paramiko, cryptography, packaging, requests)
+#      are installed; install only missing ones.
 #   3) Ask user if they want to launch HCloud. If yes, check for HCloud.py locally;
 #      if missing, download from GitHub. Then run HCloud.py.
 #
 # This script:
 #   - Uses the system Python directly.
-#   - Installs pip packages system-wide (requires user to have permission or use sudo).
+#   - Installs pip packages system-wide (requires user permission or sudo).
 #
 # NOTE:
 #   - macOS Gatekeeper: The user must chmod +x this script and possibly right-click → Open it.
@@ -96,6 +97,8 @@ function python_version_ok() {
 
 sys_python="$(command -v python3 || true)"
 
+# Function to detect if the found python3 is a stub version.
+# It does so by checking the sys.executable path.
 function python_is_stub() {
   local exe
   exe=$("$1" -c 'import sys; print(sys.executable)' 2>/dev/null)
@@ -257,7 +260,6 @@ case "$runChoice" in
     nohup "$PY_CMD" "HCloud.py" >/dev/null 2>&1 &
     exit 0
     ;;
-
   * )
     echo
     echo "${RED}Launch canceled by user. Exiting.${RESET}"
