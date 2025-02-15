@@ -58,7 +58,7 @@ Welcome to **HCloud**, a user-friendly GUI tool for managing your Hetzner Cloud 
 Open **Terminal** and run:
 
 ```bash
-curl -L -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/MacOS/HCloud_Launcher.sh && chmod +x HCloud_Launcher.sh && sudo ./HCloud_Launcher.sh
+curl -L -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/MacOS/HCloud_Launcher.sh && chmod +x HCloud_Launcher.sh && ./HCloud_Launcher.sh
 ```
 
 ---
