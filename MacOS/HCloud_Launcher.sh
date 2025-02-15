@@ -237,20 +237,24 @@ echo
 echo "${BOLD}${BLUE}               DAG0Zyq8XPnDKRB3wZaFcFHjL4seCLSDtHbUcYq3${RESET}"
 echo
 
-read -p "Do you want to launch the Hetzner Cloud Management Tool (HCloud)? (Y/N): " runChoice
+read -p "Do you want to download and launch the latest version of the Hetzner Cloud Management Tool (HCloud)? (Y/N): " runChoice 
 case "$runChoice" in
   [Yy]* )
-    if [ ! -f "HCloud.py" ]; then
-      log "HCloud.py not found in current directory. Downloading from GitHub..."
-      curl -L -o "HCloud.py" "https://raw.githubusercontent.com/Proph151Music/HCloud/main/HCloud.py" >> "$LOGFILE" 2>&1
-      if [ $? -ne 0 ] || [ ! -f "HCloud.py" ]; then
-        echo "${RED}Failed to download HCloud.py.${RESET}"
-        log "Failed to download HCloud.py"
-        exit 1
-      else
-        log "HCloud.py downloaded successfully."
-      fi
+    # Create a temporary file for the download
+    tempFile=$(mktemp /tmp/HCloud.XXXXXX.py)
+    log "Downloading HCloud.py to temporary file..."
+    
+    curl -L -o "$tempFile" "https://raw.githubusercontent.com/Proph151Music/HCloud/main/HCloud.py" >> "$LOGFILE" 2>&1
+    if [ $? -ne 0 ] || [ ! -f "$tempFile" ]; then
+      echo "${RED}Failed to download HCloud.py.${RESET}"
+      log "Failed to download HCloud.py"
+      exit 1
+    else
+      log "HCloud.py downloaded successfully to temporary file."
+      # Overwrite (or create) HCloud.py in the current directory with the downloaded file
+      mv -f "$tempFile" "HCloud.py"
     fi
+
     log "Launching HCloud.py with: $PY_CMD"
     nohup "$PY_CMD" "HCloud.py" >/dev/null 2>&1 &
     exit 0
