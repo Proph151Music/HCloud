@@ -61,11 +61,6 @@ Open **Terminal** and run:
 curl -L -O https://raw.githubusercontent.com/Proph151Music/HCloud/main/MacOS/HCloud_Launcher.sh && chmod +x HCloud_Launcher.sh && sudo ./HCloud_Launcher.sh
 ```
 
-In the future if you ever want to run `HCloud` you can open Terminal and run this command:
-```bash
-python3 HCloud_Launcher.sh
-```
-
 ---
 
 ### Ubuntu Desktop
