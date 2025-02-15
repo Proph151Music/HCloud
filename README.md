@@ -4,7 +4,6 @@ This script is currently in beta!
 If you use it, please make sure you report any issues to `@Proph151Music`
 The script will be getting more updates soon to add improvements based on user feedback.
 
-This script was written by @Proph151Music for the Constellation Network ecosystem. 
 Don't forget to tip the bar tender! 
 
 **DAG Wallet Address for sending tips:**
