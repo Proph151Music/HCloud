@@ -95,11 +95,20 @@ function python_version_ok() {
 }
 
 sys_python="$(command -v python3 || true)"
-if python_version_ok "$sys_python"; then
-  log "Python >= 3.13.2 found at: $sys_python"
-  PY_CMD="$sys_python"
-else
-  log "A suitable Python (>=3.13.2) was NOT found."
+
+function python_is_stub() {
+  local exe
+  exe=$("$1" -c 'import sys; print(sys.executable)' 2>/dev/null)
+  if [[ "$exe" == "/usr/bin/python3" ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Determine if python3 is either missing, a stub, or its version is insufficient.
+if [ -z "$sys_python" ] || python_is_stub "$sys_python" || ! python_version_ok "$sys_python"; then
+  log "A suitable Python (>=3.13.2) was NOT found or a stub version is in use."
   echo
   echo "${BOLD}${BLUE}We can automatically download & install Python 3.13.2 from python.org.${RESET}"
   echo "This step requires an admin password. The installer is ~25MB."
@@ -127,7 +136,7 @@ else
       rm -f "$PKG_FILE"
       log "Python 3.13.2 installed successfully."
 
-      # Recheck
+      # Recheck after installation
       sys_python="$(command -v python3 || true)"
       if python_version_ok "$sys_python"; then
         PY_CMD="$sys_python"
@@ -145,6 +154,9 @@ else
       exit 1
       ;;
   esac
+else
+  log "Python >= 3.13.2 found at: $sys_python"
+  PY_CMD="$sys_python"
 fi
 
 ################################################################################
