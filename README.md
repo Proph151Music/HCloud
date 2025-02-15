@@ -104,14 +104,17 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
 ## How to Use HCloud
 
 1. **Launch HCloud**: After following the installation steps, the HCloud GUI will open.
+
 2. **Enter your Hetzner API Key**: You will be prompted to enter your API key to start managing resources.
      For instructions, follow this guide: [Creating a Hetzner API Key](#creating-a-hetzner-api-key)
+
 3. **Manage your cloud resources**:
   - Create Server Tab:
    - **Create new servers**: Choose server specifications and regions.
    - **Edit and manage firewalls**: Define rules for server protection. 
        (If you leave this blank it will default to nameing it the server name you've given and add `-fw` to the end.)
        It will ask if you want to add your Home IP into the security of the Firewall, to prevent anyone from trying to access your cloud server outside of your home internet. If you select no, any IP can try to access it... but they still need your ssh file and your ssh passphrase. If you select yes it will ask if you want to add any secondary IP's as well. Like your mobile phone or work IP.
+     
    - **Import SSH keys**: Easily add SSH keys to your Hetzner Cloud account.
        (If you leave this blank it will default to nameing it the server name you've given and add `-ssh` to the end.)
        It is recommended that you create new ssh key pairs and not try to use ssh pairs you created outside of HCloud.
@@ -120,12 +123,18 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
        Do not forget it! 
        This is the first of 3 passes you will create! 
        Please don't lose them or mix them up!
+     
    - **Distribution Selection**: Choose the OS distribution that will be installed on this cloud server.
   - Install nodectl Tab:
+  - 
    - **Select Server**: This will auto populate info about your server after you have successfully created a new cloud server.
+   - 
    - **Select Network**: Choose the network your node will be installed on.
+   - 
    - **Node Username**: By default this is `nodeadmin`. You can change it... but don't forget it!
+   - 
    - **Select SSH Key**: This will auto populate after you have successfully created a new cloud server.
+   - 
    - **nodectl Version**: It's very important you install the correct nodectl version. Verify which one you need in the private Discord chatrooms. 
        Stay safe! 
        Do not ever ask for support outside of the private Discord chatroom you've been given access to!
@@ -133,13 +142,19 @@ Welcome to **HCloud**, a simple-to-use GUI tool designed to manage your Hetzner 
        Always verify you are chatting with a true Admin or Team Lead if you ever are communicating in private!
        Scammers will try very hard to trick you!
        Don't fall for it!
+     
    - **Import P12 File (Optional)**: If you are rebuilding a node, you will need to import your P12 file. If this is a brand new node you can ignore this step. 
        The P12 file is the most important part of your node.
        Always make sure you have a backup of this file in a safe and secure place!
+     
    - **Create Shortcuts (Windows Only)**: Enable this f you'd like shortcuts that will use ssh or sftp to access your node.
+   - 
    - **Export Settings To PuTTY**: If you have PuTTY and WinSCP installed from the full installers, HCloud can utilize them to have your new cloud server settings imported into PuTTY for you.
+   - 
    - **Import Into Termius**: The config file that is created for you is actually a SSH_Config file, Which you can import into Termius! Just open Termius on your computer, drop down new host and select import. Then choose ssh config. 
    You can find your ssh_config files in the `SERVERS` directory in the same location that you launched `HCloud`.
+
+---------------------------------------------------------------------------------
 
 ## Creating a Hetzner API Key
 
