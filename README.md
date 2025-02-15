@@ -111,7 +111,7 @@ You will need this key when you first run HCloud to connect the tool to your Het
    ```
 5. Run the script:
    ```bash
-   python3 HCloud.py
+   sudo ./HCloud_Launcher.sh
    ```
 ---------------------------------------------------------------------------------
 
