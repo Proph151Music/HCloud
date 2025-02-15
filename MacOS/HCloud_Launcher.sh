@@ -26,9 +26,9 @@ BOLD="${ESC}[1m"
 RESET="${ESC}[0m"
 GREEN="${ESC}[1;32m"
 YELLOW="${ESC}[1;33m"
-RED="${ESC}[1;31m}"
-CYAN="${ESC}[1;36m}"
-BLUE="${ESC}[1;34m}"
+RED="${ESC}[1;31m"
+CYAN="${ESC}[1;36m"
+BLUE="${ESC}[1;34m"
 
 LOGFILE="$(pwd)/HCloud_launcher.log"
 
