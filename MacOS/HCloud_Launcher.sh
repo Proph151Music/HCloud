@@ -3,12 +3,12 @@
 # HCloud_Launcher.sh
 #
 # PURPOSE:
-#   1) Check if Python >= 3.13.2 is installed. If not (or if a stub is found),
+#   1) Check if Python >= 3.13.2 is installed. If not (or if only a stub is found),
 #      prompt to install from python.org.
 #   2) Check if dependencies (paramiko, cryptography, packaging, requests)
 #      are installed; install only missing ones.
 #   3) Ask user if they want to launch HCloud. If yes, check for HCloud.py locally;
-#      if missing, download from GitHub. Then run HCloud.py.
+#      if missing, download it from GitHub. Then run HCloud.py.
 #
 # This script:
 #   - Uses the system Python directly.
@@ -25,9 +25,9 @@ ESC="$(printf '\033')"
 BOLD="${ESC}[1m"
 RESET="${ESC}[0m"
 GREEN="${ESC}[1;32m"
-YELLOW="${ESC}[1;33m}"
-RED="${ESC}[1;31m}"
-CYAN="${ESC}[1;36m}"
+YELLOW="${ESC}[1;33m"
+RED="${ESC}[1;31m"
+CYAN="${ESC}[1;36m"
 BLUE="${ESC}[1;34m}"
 
 LOGFILE="$(pwd)/HCloud_launcher.log"
@@ -94,21 +94,30 @@ function python_version_ok() {
   (( actual_int >= required_int ))
 }
 
+# Locate python3 using command -v
 sys_python="$(command -v python3 || true)"
+INSTALL_PYTHON=false
 
-if [ -z "$sys_python" ] || [ "$sys_python" = "/usr/bin/python3" ]; then
-  log "No suitable Python3 found or a stub version is in use."
+if [ -z "$sys_python" ]; then
+  # No python3 in PATH.
   INSTALL_PYTHON=true
-elif ! python_version_ok "$sys_python"; then
-  log "Python found at: $sys_python but its version is lower than 3.13.2."
-  INSTALL_PYTHON=true
-else
-  log "Python >= 3.13.2 found at: $sys_python"
-  PY_CMD="$sys_python"
-  INSTALL_PYTHON=false
+elif [ "$sys_python" = "/usr/bin/python3" ]; then
+  if [ -f "/Applications/Xcode.app/Contents/Developer/usr/bin/python3" ]; then
+    sys_python="/Applications/Xcode.app/Contents/Developer/usr/bin/python3"
+  else
+    INSTALL_PYTHON=true
+  fi
+fi
+
+if ! $INSTALL_PYTHON; then
+  if ! python_version_ok "$sys_python"; then
+    log "Python found at: $sys_python but its version is lower than 3.13.2."
+    INSTALL_PYTHON=true
+  fi
 fi
 
 if $INSTALL_PYTHON; then
+  log "A suitable Python (>=3.13.2) was NOT found or a stub version is in use."
   echo
   echo "${BOLD}${BLUE}We can automatically download & install Python 3.13.2 from python.org.${RESET}"
   echo "This step requires an admin password. The installer is ~25MB."
@@ -136,7 +145,6 @@ if $INSTALL_PYTHON; then
       rm -f "$PKG_FILE"
       log "Python 3.13.2 installed successfully."
 
-      # Recheck after installation
       sys_python="$(command -v python3 || true)"
       if python_version_ok "$sys_python"; then
         PY_CMD="$sys_python"
@@ -154,6 +162,9 @@ if $INSTALL_PYTHON; then
       exit 1
       ;;
   esac
+else
+  log "Python >= 3.13.2 found at: $sys_python"
+  PY_CMD="$sys_python"
 fi
 
 ################################################################################
