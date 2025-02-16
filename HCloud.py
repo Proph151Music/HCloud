@@ -19,7 +19,7 @@ restart_required = False
 
 # Ensure Python 3.13+ on macOS
 def ensure_python_and_brew(log_widget=None):
-    if platform.system() == "Darwin":  # macOS check
+    if platform.system() == "Darwin":
         python_version_output = subprocess.run(
             ["python3", "--version"],
             capture_output=True,
@@ -27,7 +27,7 @@ def ensure_python_and_brew(log_widget=None):
         ).stdout.strip()
         current_version = tuple(map(int, python_version_output.split()[1].split(".")))
 
-        if current_version < (3, 13):  # Check if Python version is lower than 3.13
+        if current_version < (3, 13):
             if log_widget:
                 log_widget.insert(tk.END, "Upgrading Python to 3.13+ with Homebrew...\n")
                 log_widget.see(tk.END)
@@ -65,16 +65,14 @@ ensure_python_and_brew()
 def ensure_tkinter():
     """Ensure tkinter is available."""
     try:
-        # Try importing tkinter
         import tkinter as tk
         from tkinter import scrolledtext, ttk, messagebox, filedialog
         import tkinter.simpledialog as simpledialog
         import tkinter.font as tkFont
         print("tkinter is available.")
     except ImportError:
-        # If tkinter is missing, try to install it
         print("tkinter not found. Attempting to install...")
-        if platform.system() == "Darwin":  # macOS
+        if platform.system() == "Darwin":
             try:
                 # Install Tcl/Tk and Python dependencies using Homebrew
                 subprocess.check_call(["brew", "install", "tcl-tk"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -99,7 +97,6 @@ def ensure_tkinter():
             print("tkinter installation not automated for this OS. Please install it manually.")
             sys.exit(1)
 
-# Ensure tkinter before proceeding
 ensure_tkinter()
 
 import tkinter as tk
@@ -122,7 +119,6 @@ if os.environ.get("RESTARTED") == "1":
     # Remove the environment variable to prevent infinite restarts
     del os.environ["RESTARTED"]
 else:
-    # This is the first run; proceed normally
     pass
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -153,31 +149,19 @@ def install_package(package_name, log_widget=None):
 
 def restart_script():
     try:
-        # Use the main Tkinter root
         global root
         if root is not None:
-            # Inform the user that the script needs to restart
             messagebox.showinfo("Restart Required", "The script has finished installing dependencies. Please launch the script again to continue.")
-
-            # Destroy the root window
             root.destroy()
-
-            # Stop the mainloop
             root.quit()
         else:
-            # If root is None, initialize it (unlikely in this context)
             root = tk.Tk()
             root.withdraw()
             messagebox.showinfo("Restart Required", "The script has finished installing dependencies. Please launch the script again to continue.")
             root.destroy()
 
-        # Set an environment variable to indicate the script has restarted
         os.environ["RESTARTED"] = "1"
-
-        # Start a new instance of the script
         subprocess.Popen([sys.executable] + sys.argv)
-
-        # Close the current instance
         sys.exit(0)
 
     except Exception as e:
@@ -186,9 +170,9 @@ def restart_script():
         
 def install_pywin32(log_widget=None):
     logging.debug("Checking if PyWin32 is installed...")
-    if os.name == 'nt':  # Only relevant for Windows systems
+    if os.name == 'nt':
         try:
-            import win32api  # Checking for any module from pywin32
+            import win32api
             if log_widget:
                 log_widget.insert(tk.END, "PyWin32 is already installed.\n")
                 log_widget.see(tk.END)
@@ -203,7 +187,6 @@ def install_pywin32(log_widget=None):
                     log_widget.see(tk.END)
                 logging.debug("PyWin32 post-installation completed.")
                 
-                # Set a flag to signal that a restart is required without immediate restart
                 global restart_required
                 restart_required = True
 
@@ -262,13 +245,11 @@ def install_required_packages(log_widget=None):
                 log_widget.see(tk.END)
             logging.debug(f"Package '{package}' installed.")
 
-    # Install PyWin32 specifically for Windows
     install_pywin32(log_widget)
 
     import requests
     import paramiko
 
-    # Only restart if pywin32 was successfully installed and flagged
     if restart_required:
         restart_script()
 
@@ -280,9 +261,6 @@ locations = []
 import tkinter as tk
 
 class Tooltip:
-    """A tooltip that tries to position above-centered, then below-centered,
-    and finally falls back to top-left if not fully visible.
-    Also forces itself on top and clamps coordinates to screen bounds."""
     def __init__(self, widget, text):
         self.widget = widget
         self.text = text
@@ -291,11 +269,9 @@ class Tooltip:
         widget.bind("<Leave>", self.hide_tooltip)
 
     def show_tooltip(self, event):
-        # Create the Toplevel offscreen so we can measure it
         self.tooltip_window = tk.Toplevel(self.widget)
-        self.tooltip_window.withdraw()              # Hide for now
-        self.tooltip_window.overrideredirect(True)  # No window decorations
-        # Make it topmost so it won’t hide behind the main window:
+        self.tooltip_window.withdraw()
+        self.tooltip_window.overrideredirect(True)
         self.tooltip_window.attributes("-topmost", True)
 
         label = tk.Label(
@@ -307,56 +283,43 @@ class Tooltip:
             font=("Helvetica", 8)
         )
         label.pack(ipadx=1, ipady=1)
-
-        # Force geometry calculation
         self.tooltip_window.update_idletasks()
 
-        # Tooltip size
         tip_width = self.tooltip_window.winfo_width()
         tip_height = self.tooltip_window.winfo_height()
 
-        # Identify the main GUI window (top-level) and its geometry
         root_window = self.widget.winfo_toplevel()
-        root_window.update_idletasks()  # Ensure geometry is up to date
+        root_window.update_idletasks()
 
-        # Screen size
         screen_width = root_window.winfo_screenwidth()
         screen_height = root_window.winfo_screenheight()
 
-        # Main window position/size
         main_x = root_window.winfo_rootx()
         main_y = root_window.winfo_rooty()
         main_w = root_window.winfo_width()
         main_h = root_window.winfo_height()
 
-        # Offsets
         offset = 20
-        extra_for_top_bar = 20  # Additional offset for the top bar if you want it higher
+        extra_for_top_bar = 20
 
-        # 1) Try ABOVE & CENTERED
         x_above = main_x + (main_w // 2) - (tip_width // 2)
         y_above = main_y - tip_height - offset - extra_for_top_bar
         if (x_above >= 0) and (y_above >= 0):
             final_x, final_y = x_above, y_above
         else:
-            # 2) If not above, try BELOW & CENTERED
             x_below = main_x + (main_w // 2) - (tip_width // 2)
             y_below = main_y + main_h + offset
             if ((x_below + tip_width) <= screen_width) and ((y_below + tip_height) <= screen_height):
                 final_x, final_y = x_below, y_below
             else:
-                # 3) Fallback: top-left, 50px from edges
                 final_x = 50
                 final_y = 50
 
-        # Clamp to screen, just in case
         final_x = max(0, min(final_x, screen_width - tip_width))
         final_y = max(0, min(final_y, screen_height - tip_height))
 
-        # Apply geometry and show
         self.tooltip_window.geometry(f"+{final_x}+{final_y}")
         self.tooltip_window.deiconify()  
-        # Lift again to ensure it's above the main window
         self.tooltip_window.lift()
 
     def hide_tooltip(self, event):
@@ -366,12 +329,9 @@ class Tooltip:
 
 def format_path(path):
     if os.name == 'nt':
-        # Normalize path for Windows, which converts forward slashes to backslashes
         return os.path.normpath(path)
     else:
-        # Normalize path for non-Windows systems, ensuring correct slashes
         normalized_path = os.path.normpath(path)
-        # Replace double forward slashes with a single slash
         return normalized_path.replace('//', '/')
 
 def read_firewall_info_from_file(server_name):
@@ -405,15 +365,11 @@ def read_firewall_info_from_file(server_name):
     return firewall_name, firewall_rules
 
 def save_server_info(server_name, server_ip, ssh_key_path, username, network):
-    # Create SERVERS folder if it doesn't exist
     servers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SERVERS', server_name)
     os.makedirs(servers_dir, exist_ok=True)
     ssh_config_file_path = os.path.join(servers_dir, f"{server_name}_ssh_config.txt")
-
-    # Format the ssh_key_path for SSH config
     formatted_ssh_key_path = format_path(ssh_key_path)
 
-    # Collect the SSH config information
     ssh_config_lines = [
         f"### This ssh_config file can also be used to import this server's settings into Termius. ###",
         "",
@@ -425,7 +381,6 @@ def save_server_info(server_name, server_ip, ssh_key_path, username, network):
         "",
     ]
 
-    # Add commands as comments
     ssh_command = f"ssh -i {formatted_ssh_key_path} {username}@{server_ip}"
     sftp_command = f"sftp -i {formatted_ssh_key_path} {username}@{server_ip}"
 
@@ -436,7 +391,6 @@ def save_server_info(server_name, server_ip, ssh_key_path, username, network):
         f"# {sftp_command}",
     ])
 
-    # Write the SSH config to the file
     with open(ssh_config_file_path, 'w') as f:
         f.write('\n'.join(ssh_config_lines))
 
@@ -477,13 +431,11 @@ def get_firewall_details(api_key, firewall_id):
         print(f"Failed to fetch firewall details: {response.text}")
         return {}
     
-# Function to save configuration to a file
 def save_config(config_data, config_file='config.txt'):
     with open(config_file, 'w') as file:
         for key, value in config_data.items():
             file.write(f'{key} = {value}\n')
 
-# Function to load configuration from a file
 def load_config(config_file='config.txt'):
     config = {}
     if os.path.exists(config_file):
@@ -575,27 +527,14 @@ def fetch_server_details(api_key, server_name):
 
     server_id = server_summary['id']
 
-    # Fetch the detailed server information using GET /servers/{id}?include=firewalls
     server_response = requests.get(f'https://api.hetzner.cloud/v1/servers/{server_id}?include=firewalls', headers=headers)
     if server_response.status_code != 200:
         print(f"Failed to fetch server details: {server_response.status_code}")
         return None
 
     server = server_response.json().get('server', {})
-    
-    # Fetch SSH keys
-    ## ssh_keys_response = requests.get('https://api.hetzner.cloud/v1/ssh_keys', headers=headers)
-    ## ssh_keys = ssh_keys_response.json().get('ssh_keys', []) if ssh_keys_response.status_code == 200 else []
-    
-    # Matching SSH keys based on expected label format
-    ## expected_ssh_label = f"{server_name.lower().replace(' ', '-')}-ssh"
-    ## matching_ssh_keys = [key['name'] for key in ssh_keys if key['name'].lower() == expected_ssh_label]
-
-    # Fetch SSH key path from saved server info
     ssh_key_path = read_ssh_key_path(server_name)
-    ## ssh_key_name = os.path.basename(ssh_key_path) if ssh_key_path else ''
 
-    # Fetch firewall IDs directly from the detailed server object
     firewall_ids = []
     for fw in server.get('private_net', []):
         for firewall in fw.get('firewalls', []):
@@ -604,13 +543,11 @@ def fetch_server_details(api_key, server_name):
     for fw in server.get('public_net', {}).get('firewalls', []):
         if fw and 'id' in fw:
             firewall_ids.append(fw['id'])
-    # Also check the 'firewalls' key at the root level
     for fw in server.get('firewalls', []):
         firewall = fw.get('firewall')
         if firewall and 'id' in firewall:
             firewall_ids.append(firewall['id'])
 
-    # Remove duplicates
     firewall_ids = list(set(firewall_ids))
 
     firewall_names = []
@@ -619,11 +556,9 @@ def fetch_server_details(api_key, server_name):
         firewalls = firewalls_response.json().get('firewalls', []) if firewalls_response.status_code == 200 else []
         firewall_names = [fw['name'] for fw in firewalls if fw['id'] in firewall_ids]
 
-    # Return collected data
     return {
         'host_ip': server['public_net']['ipv4']['ip'],
         'ssh_key_path': ssh_key_path,
-        ## 'ssh_key_name': ssh_key_name,
         'firewalls': firewall_names,
         'server_type': server['server_type']['name'],
         'cores': server['server_type']['cores'],
@@ -668,16 +603,12 @@ def create_new_firewall_with_defaults(api_key, firewall_name):
                         "from a device connected to that network."
                     )
                     if additional_ips:
-                        # Split and strip the input
                         additional_ips_list = [ip.strip() for ip in additional_ips.split(',') if ip.strip()]
-                        # Process each IP/CIDR
                         processed_ips = []
                         invalid_ips = []
                         for ip in additional_ips_list:
-                            original_ip = ip  # Keep the original input for error messages
-                            # Check if CIDR notation is present
+                            original_ip = ip
                             if '/' not in ip:
-                                # Determine if it's IPv4 or IPv6 and append appropriate CIDR
                                 try:
                                     ip_obj = ipaddress.ip_address(ip)
                                     if isinstance(ip_obj, ipaddress.IPv4Address):
@@ -687,7 +618,6 @@ def create_new_firewall_with_defaults(api_key, firewall_name):
                                 except ValueError:
                                     invalid_ips.append(original_ip)
                                     continue
-                            # Validate the IP/CIDR
                             try:
                                 ipaddress.ip_network(ip, strict=False)
                                 processed_ips.append(ip)
@@ -699,12 +629,11 @@ def create_new_firewall_with_defaults(api_key, firewall_name):
                                 f"The following IP addresses or CIDR ranges are invalid:\n\n{', '.join(invalid_ips)}\n\n"
                                 "Please enter valid IP addresses or CIDR ranges."
                             )
-                            continue  # Prompt again
+                            continue
                         else:
                             source_ips_ssh.extend(processed_ips)
                             break
                     else:
-                        # User did not enter any additional IPs
                         break
         else:
             # Allow SSH from any IP
@@ -758,7 +687,6 @@ def secure_ssh_to_wan_ip():
                     new_value = wan_ip + "/32"
                     add_details_var_obj.set(new_value)
 
-                # Remove any other rules for SSH
                 for other_row in rules_frame.winfo_children():
                     if other_row != row:
                         other_entries = [widget for widget in other_row.winfo_children() if isinstance(widget, (tk.Entry, ttk.Combobox, tk.Label))]
@@ -769,7 +697,6 @@ def secure_ssh_to_wan_ip():
                             if other_port_range == "22" and other_protocol.lower() == "ssh":
                                 other_row.destroy()
 
-# Function to fetch SSH keys
 def fetch_ssh_keys(api_key):
     headers = {'Authorization': f'Bearer {api_key}'}
     url = 'https://api.hetzner.cloud/v1/ssh_keys'
@@ -781,22 +708,16 @@ def fetch_ssh_keys(api_key):
         return []
 
 def update_firewall_dropdown(api_key, firewall_dropdown, selected_firewall_var):
-    # Fetch the latest firewalls
     firewalls, _, _, _ = fetch_data(api_key)
-    
-    # Get the current selected firewall
     current_selection = selected_firewall_var.get()
     
-    # Update the dropdown values
     firewall_names = [fw['name'] for fw in firewalls]
     firewall_dropdown['values'] = firewall_names
     
-    # Clear the selection if the current selection is no longer available
     if current_selection not in firewall_names:
         selected_firewall_var.set('') 
         firewall_dropdown.set('') 
 
-# Function to create or edit a firewall
 def create_edit_firewall_window(api_key, firewall_details, firewall_dropdown):
     edit_window = tk.Toplevel()    
     window_title = "Edit Firewall" if firewall_details.get('name') else "New Firewall"
@@ -804,68 +725,55 @@ def create_edit_firewall_window(api_key, firewall_details, firewall_dropdown):
     
     edit_window.geometry("600x400")
 
-    # Displaying and editing the name of the firewall
     tk.Label(edit_window, text="Firewall Name:").pack()
     name_entry = tk.Entry(edit_window)
     name_entry.insert(0, firewall_details.get('name', firewall_dropdown.get()))
     name_entry.pack()
 
-    # Frame for rules
     global rules_frame
     rules_frame = tk.Frame(edit_window)
     rules_frame.pack()
 
-    # Header row for labels
     header_row = tk.Frame(rules_frame)
     header_row.pack(fill='x', padx=25, pady=2)
     tk.Label(header_row, text="Add Details", width=15, anchor='w').pack(side=tk.LEFT)
     tk.Label(header_row, text="Protocol", width=10, anchor='w').pack(side=tk.LEFT)
     tk.Label(header_row, text="Port Range", width=15, anchor='w').pack(side=tk.LEFT)
 
-    # Function to add a new rule row
     def add_rule_row(add_details="Any IPv4, Any IPv6", protocol="", port_range=""):
         row = tk.Frame(rules_frame)
         row.pack(fill='x', padx=5, pady=2)
 
-        # Add Details input (for source IPs)
         add_details_var = tk.StringVar(value=add_details)
         add_details_entry = tk.Entry(row, width=20, textvariable=add_details_var)
         add_details_entry.pack(side=tk.LEFT)
 
         if protocol == "ssh" and port_range == "22":
-            # Store the add_details_var in the dictionary
             ssh_var_dict[row] = add_details_var
 
-            # Protocol and Port Range for SSH (non-editable)
             tk.Label(row, text="ssh", width=10).pack(side=tk.LEFT)
             tk.Label(row, text="22", width=15).pack(side=tk.LEFT)
         elif protocol == "icmp":
-            # Protocol for ICMP (non-editable)
             tk.Label(row, text="icmp", width=10).pack(side=tk.LEFT)
             tk.Label(row, text="", width=15).pack(side=tk.LEFT)
         else:
-            # Protocol dropdown menu
             protocol_options = ["tcp", "udp"]
             protocol_menu = ttk.Combobox(row, values=protocol_options, width=10)
             protocol_menu.set(protocol)
             protocol_menu.pack(side=tk.LEFT)
 
-            # Port range input
             port_range_var = tk.StringVar(value=port_range)
             port_range_entry = tk.Entry(row, width=15, textvariable=port_range_var)
             port_range_entry.pack(side=tk.LEFT)
 
-            # Delete button
             tk.Button(row, text="DELETE", command=lambda: row.destroy()).pack(side=tk.LEFT)
 
-    # Add existing rules or default rules for new firewall
     if firewall_details.get('rules'):
         for rule in firewall_details['rules']:
             source_ips = ", ".join(rule.get('source_ips', [])).replace("0.0.0.0/0", "Any IPv4").replace("::/0", "Any IPv6")
             protocol = rule.get('protocol', '')
             port_range = rule.get('port', '') if rule.get('port') else ""
 
-            # Check for SSH and ICMP rules
             if protocol == "tcp" and port_range == "22":
                 add_rule_row(source_ips, "ssh", "22")
             elif protocol == "icmp":
@@ -873,30 +781,23 @@ def create_edit_firewall_window(api_key, firewall_details, firewall_dropdown):
             else:
                 add_rule_row(source_ips, protocol, port_range)
     else:
-        # Add default SSH and ICMP rules
         add_rule_row("Any IPv4, Any IPv6", "ssh", "22")
         add_rule_row("Any IPv4, Any IPv6", "icmp", "")
-        # Add default TCP port ranges 9000-9001 and 9010-9011
         add_rule_row("Any IPv4, Any IPv6", "tcp", "9000-9001")
         add_rule_row("Any IPv4, Any IPv6", "tcp", "9010-9011")
 
-    # Add Rule button
     tk.Button(edit_window, text="ADD", command=lambda: add_rule_row()).pack()
 
-    # Add Secure Access to WAN IP button
     tk.Button(edit_window, text="Secure Access to WAN IP", command=secure_ssh_to_wan_ip).pack(pady=5)
 
-    # Save button with specified width
     tk.Button(edit_window, text="Save", width=20, command=lambda: save_firewall(api_key, name_entry.get(), rules_frame, firewall_details.get('id'), firewall_dropdown, edit_window)).pack(side=tk.BOTTOM, pady=10)
 
-# Function to save the edited firewall details or create a new firewall
 def save_firewall(api_key, new_name, rules_frame, firewall_id, firewall_dropdown, edit_window):
     logging.debug("save_firewall called")
 
     try:
         headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
 
-        # Determine the correct URL and HTTP method
         if firewall_id:
             url = f'https://api.hetzner.cloud/v1/firewalls/{firewall_id}/actions/set_rules'
             http_method = requests.post
@@ -907,12 +808,10 @@ def save_firewall(api_key, new_name, rules_frame, firewall_id, firewall_dropdown
         logging.debug(f"URL: {url}")
         logging.debug(f"Firewall ID: {firewall_id}")
 
-        # Prepare the data for the API request
         updated_rules = []
         for row in rules_frame.winfo_children():
             entries = [widget for widget in row.winfo_children() if isinstance(widget, (tk.Entry, ttk.Combobox, tk.Label))]
             
-            # Ensure this is not a header row
             if any(isinstance(widget, tk.Label) and widget.cget("text") in ["Add Details", "Protocol", "Port Range"] for widget in entries):
                 continue
             
@@ -924,23 +823,20 @@ def save_firewall(api_key, new_name, rules_frame, firewall_id, firewall_dropdown
 
                 logging.debug(f"Row details - add_details: {add_details_text}, protocol: {protocol}, port_range: {port_range}")
 
-                # Convert user-friendly inputs to API format if necessary
                 source_ips = [ip.strip().replace("Any IPv4", "0.0.0.0/0").replace("Any IPv6", "::/0") for ip in add_details_text.split(",")]
 
                 rule = {
                     "direction": "in",
-                    "protocol": "tcp" if protocol == "ssh" else protocol,  # Translate 'ssh' to 'tcp'
+                    "protocol": "tcp" if protocol == "ssh" else protocol,
                     "source_ips": source_ips
                 }
-                if protocol.lower() != "icmp":  # Only add the 'port' field if the protocol is not ICMP
+                if protocol.lower() != "icmp":
                     rule["port"] = port_range
 
                 updated_rules.append(rule)
 
-        # Log updated rules before adding mandatory rules
         logging.debug(f"Updated rules before adding mandatory rules: {updated_rules}")
 
-        # Ensure to include mandatory rules if they are not already included
         mandatory_rules = [
             {"direction": "in", "protocol": "tcp", "port": "22", "source_ips": ["0.0.0.0/0", "::/0"]},
             {"direction": "in", "protocol": "icmp", "source_ips": ["0.0.0.0/0", "::/0"]}
@@ -949,18 +845,14 @@ def save_firewall(api_key, new_name, rules_frame, firewall_id, firewall_dropdown
             if not any(rule['protocol'] == mandatory_rule['protocol'] and rule.get('port') == mandatory_rule.get('port') for rule in updated_rules):
                 updated_rules.append(mandatory_rule)
 
-        # Log final rules
         logging.debug(f"Final rules to be sent: {updated_rules}")
 
-        # Prepare the payload
         payload = {'rules': updated_rules}
         if not firewall_id:
             payload['name'] = new_name
 
-        # Set the new rules or create a new firewall
         response = http_method(url, headers=headers, json=payload)
 
-        # Log the payload and response for debugging
         log_message = "Payload Sent:\n" + str(payload)
         log_message += "\n\nAPI Response:\n" + str(response.json())
         logging.debug(log_message)
@@ -976,9 +868,7 @@ def save_firewall(api_key, new_name, rules_frame, firewall_id, firewall_dropdown
         logging.error(f"Error in save_firewall: {e}")
         messagebox.showerror("Error", f"An error occurred: {e}")
 
-# Function to delete firewall
 def delete_firewall(api_key, firewall_name, firewall_dropdown, selected_firewall):
-    # Ask for confirmation before deleting
     confirm = messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete the firewall '{firewall_name}'? This action cannot be undone.")
     if not confirm:
         return
@@ -998,7 +888,6 @@ def delete_firewall(api_key, firewall_name, firewall_dropdown, selected_firewall
     else:
         messagebox.showerror("Error", f"Failed to delete firewall. Status Code: {response.status_code}")
 
-# Function to edit firewall
 def edit_firewall(api_key, firewall_name, firewall_dropdown):
     firewalls, _, _, _ = fetch_data(api_key)
     firewall = next((fw for fw in firewalls if fw['name'] == firewall_name), None)
@@ -1023,10 +912,8 @@ def import_ssh(api_key, ssh_name, ssh_dropdown):
     if response.status_code == 201:
         messagebox.showinfo("Success", f"SSH Key '{ssh_name}' imported successfully.")
 
-        # Refresh the SSH dropdown values
         ssh_keys = fetch_ssh_keys(api_key)
 
-        # Fetch local SSH keys
         ssh_dir = os.path.expanduser("~/.ssh")
         if os.path.exists(ssh_dir):
             local_ssh_keys = [f for f in os.listdir(ssh_dir) if f.endswith('.pub')]
@@ -1034,7 +921,6 @@ def import_ssh(api_key, ssh_name, ssh_dropdown):
         else:
             local_ssh_keys = []
 
-        # Combine Hetzner SSH keys with local SSH keys and prefix "Local: " to local keys
         ssh_names_on_hetzner = [ssh['name'] for ssh in ssh_keys]
         for local_key in local_ssh_keys:
             if local_key not in ssh_names_on_hetzner:
@@ -1044,56 +930,45 @@ def import_ssh(api_key, ssh_name, ssh_dropdown):
     else:
         messagebox.showerror("Error", f"Failed to import SSH key to Hetzner. Response: {response.text}")
 
-# Function to create SSH key
 def create_ssh_key(api_key, ssh_key_name, passphrase, ssh_dropdown):
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
     url = "https://api.hetzner.cloud/v1/ssh_keys"
 
-    # Check if SSH key already exists on Hetzner
     ssh_keys = fetch_ssh_keys(api_key)
     if any(ssh['name'] == ssh_key_name for ssh in ssh_keys):
         messagebox.showwarning("SSH Key Exists", f"The SSH key '{ssh_key_name}' already exists on Hetzner.")
         return None
 
-    # Check if SSH key already exists locally
     key_path = os.path.expanduser(f"~/.ssh/{ssh_key_name}")
     if os.path.exists(key_path) or os.path.exists(f"{key_path}.pub"):
         messagebox.showerror("Error", "The SSH key already exists locally and cannot be overwritten.")
         return None
     
     if passphrase is None:
-        # Prompt the user for a passphrase
         passphrase = simpledialog.askstring("Passphrase", f"Enter passphrase for SSH key '{ssh_key_name}':", show='*')
     
     if passphrase is None:
         messagebox.showinfo("Cancelled", "SSH key creation cancelled.")
         return None
 
-    # Generate the SSH key pair locally
     key_path = os.path.expanduser(f"~/.ssh/{ssh_key_name}")
     
-    # Ensure the key does not already exist locally
     if os.path.exists(key_path) or os.path.exists(f"{key_path}.pub"):
         messagebox.showerror("Error", "The SSH key already exists locally and cannot be overwritten.")
         return None
 
-    # Create the SSH key pair with the provided passphrase
     if platform.system() == "Windows":
-        # Use original command on Windows
         cmd = f"ssh-keygen -t rsa -b 4096 -f \"{key_path}\" -N \"{passphrase}\" -C \"{ssh_key_name}\""
     else:
-        # Adjust for UNIX-based systems (macOS/Linux)
         escaped_passphrase = passphrase.replace('"', '\\"')
         cmd = ["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", key_path, "-N", escaped_passphrase, "-C", ssh_key_name]
     
-    # Run the command without shell=True on macOS/Linux to prevent issues with $ and other special characters
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     if result.returncode != 0:
         logging.error(f"Failed to generate SSH key locally. Error: {result.stderr.decode('utf-8')}")
         return None
 
-    # Read the public key
     try:
         with open(f"{key_path}.pub", "r") as file:
             public_key = file.read().strip()
@@ -1102,10 +977,8 @@ def create_ssh_key(api_key, ssh_key_name, passphrase, ssh_dropdown):
         messagebox.showerror("Error", f"Failed to read the public key file: {e}")
         return None
 
-    # Prepare the payload for the Hetzner API
     data = {'name': ssh_key_name, 'public_key': public_key}
     
-    # Send the request to create the SSH key in Hetzner
     try:
         response = requests.post(url, headers=headers, json=data)
         response_data = response.json()
@@ -1124,9 +997,7 @@ def create_ssh_key(api_key, ssh_key_name, passphrase, ssh_dropdown):
         messagebox.showerror("Error", f"Failed to create SSH key on Hetzner due to a network error: {e}")
         return None
 
-# Function to delete SSH key
 def delete_ssh_key(api_key, ssh_key_name, ssh_dropdown, selected_ssh, update_ssh_buttons):
-    # Ask for confirmation before deleting
     confirm = messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete the SSH key '{ssh_key_name}'? This action cannot be undone.")
     if not confirm:
         return
@@ -1135,7 +1006,6 @@ def delete_ssh_key(api_key, ssh_key_name, ssh_dropdown, selected_ssh, update_ssh
         local_key_name = ssh_key_name.replace("Local: ", "")
         key_path = os.path.expanduser(f"~/.ssh/{local_key_name}")
         
-        # Check and delete local key files
         if os.path.exists(key_path):
             os.remove(key_path)
         if os.path.exists(f"{key_path}.pub"):
@@ -1144,7 +1014,6 @@ def delete_ssh_key(api_key, ssh_key_name, ssh_dropdown, selected_ssh, update_ssh
         messagebox.showinfo("Success", "Local SSH Key deleted successfully.")
         update_ssh_dropdown(api_key, ssh_dropdown, selected_ssh, update_ssh_buttons)
     else:
-        # Handle deletion on Hetzner
         ssh_keys = fetch_ssh_keys(api_key)
         ssh_key = next((key for key in ssh_keys if key['name'] == ssh_key_name), None)
         
@@ -1163,14 +1032,11 @@ def delete_ssh_key(api_key, ssh_key_name, ssh_dropdown, selected_ssh, update_ssh
             messagebox.showerror("Error", f"Failed to delete SSH key from Hetzner. Status Code: {response.status_code}")
 
 def update_ssh_dropdown(api_key, ssh_dropdown, selected_ssh, update_ssh_buttons):
-    # Refresh SSH keys from Hetzner
     ssh_keys = fetch_ssh_keys(api_key)
     
-    # Fetch local SSH keys
     local_ssh_keys = [f for f in os.listdir(os.path.expanduser("~/.ssh")) if f.endswith('.pub')]
     local_ssh_keys = [os.path.splitext(f)[0] for f in local_ssh_keys]
 
-    # Combine Hetzner SSH keys with local SSH keys and prefix "Local: " to local keys
     ssh_names_on_hetzner = [ssh['name'] for ssh in ssh_keys]
     for local_key in local_ssh_keys:
         if local_key not in ssh_names_on_hetzner:
@@ -1195,25 +1061,19 @@ def remove_ip_from_known_hosts(server_ip):
             else:
                 print(f"Removed offending IP {server_ip} from known_hosts.")
 
-# Function to create server
 def create_server(api_key, server_name, server_type, image, location, firewall_id, selected_ssh_key_name, ssh_dropdown):
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
 
-    # Fetch all SSH keys from Hetzner
     ssh_keys = fetch_ssh_keys(api_key)
 
-    # Try to find the selected SSH key in Hetzner
     ssh_key = next((key for key in ssh_keys if key['name'] == selected_ssh_key_name), None)
 
-    # Paths to local SSH keys
     local_private_key_path = os.path.expanduser(f"~/.ssh/{selected_ssh_key_name}")
     local_public_key_path = f"{local_private_key_path}.pub"
 
-    # Check if SSH keys exist locally
     ssh_private_key_exists = os.path.isfile(local_private_key_path)
     ssh_public_key_exists = os.path.isfile(local_public_key_path)
 
-    # Scenario 1: SSH Key Exists Locally but Not on Hetzner
     if ssh_private_key_exists and not ssh_key:
         if messagebox.askyesno("Import SSH Key", f"The SSH key '{selected_ssh_key_name}' exists locally but not on Hetzner. Do you want to import it to Hetzner?"):
             import_ssh(api_key, selected_ssh_key_name, ssh_dropdown)
@@ -1225,32 +1085,25 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
             messagebox.showinfo("Operation Cancelled", "Server creation cancelled.")
             return
         
-    # Scenario 2: SSH Key Exists on Hetzner but Not Locally
     elif ssh_key and not ssh_private_key_exists:
         if messagebox.askyesno("Locate SSH Key", f"The SSH key '{selected_ssh_key_name}' exists on Hetzner but not locally. \n\nDo you want to locate the SSH private key?"):
-            # Prompt user to select the private key file
             ssh_file_path = filedialog.askopenfilename(title='Select SSH Private Key', initialdir=os.path.expanduser('~'))
             if ssh_file_path:
-                # Validate that the selected key matches the public key on Hetzner
                 if os.path.isfile(ssh_file_path + '.pub'):
                     with open(ssh_file_path + '.pub', 'r') as pub_key_file:
                         local_public_key = pub_key_file.read().strip()
                     if local_public_key == ssh_key['public_key'].strip():
                         messagebox.showinfo("Success", "SSH key validated successfully.")
 
-                        # Paths to copy the SSH key files to ~/.ssh/
                         destination_private_key = os.path.expanduser(f'~/.ssh/{selected_ssh_key_name}')
                         destination_public_key = os.path.expanduser(f'~/.ssh/{selected_ssh_key_name}.pub')
                         
-                        # Check if the destination files already exist
                         if os.path.exists(destination_private_key) or os.path.exists(destination_public_key):
                             messagebox.showwarning(
                                 "File Exists",
                                 f"The SSH key files already exist in '~/.ssh/'. The existing files will not be overwritten."
                             )
-                            # Use the existing files
                         else:
-                            # Copy the SSH key files to the ~/.ssh/ directory
                             try:
                                 import shutil
                                 shutil.copy2(ssh_file_path, destination_private_key)
@@ -1260,7 +1113,6 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
                                 messagebox.showerror("Error", f"Failed to copy SSH key files: {e}")
                                 return
                             
-                        # Update the paths to use the located key in ~/.ssh/
                         local_private_key_path = destination_private_key
                         local_public_key_path = destination_public_key
                         ssh_private_key_exists = True
@@ -1277,12 +1129,9 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
             messagebox.showinfo("Operation Cancelled", "Server creation cancelled.")
             return
         
-    # Scenario 3: SSH Key Exists Both Locally and on Hetzner
     elif ssh_key and ssh_private_key_exists:
-        # Use the existing SSH key
         pass
 
-    # Scenario 4: SSH Key Does Not Exist Locally or on Hetzner
     elif not ssh_key and not ssh_private_key_exists:
         passphrase = simpledialog.askstring("Passphrase", f"Enter passphrase for the new SSH key '{selected_ssh_key_name}':", show='*')
         if passphrase is not None:
@@ -1295,16 +1144,13 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
             messagebox.showinfo("Operation Cancelled", "Server creation cancelled.")
             return
         
-    # Ensure ssh_key is available
     if not ssh_key:
         messagebox.showerror("Error", "SSH key is not available. Cannot proceed.")
         return
     
-    # Proceed with creating the server using ssh_key['id']
     ssh_key_id = ssh_key['id']
     print(f"Using SSH key with ID {ssh_key_id} and name '{selected_ssh_key_name}'.")
     
-    # Continue with your existing code to create the server
     data = {
         'name': server_name,
         'server_type': server_type,
@@ -1317,30 +1163,19 @@ def create_server(api_key, server_name, server_type, image, location, firewall_i
     response = requests.post('https://api.hetzner.cloud/v1/servers', headers=headers, json=data)
 
     if response.status_code == 201:
-        # If server creation is successful, remove the server IP from known_hosts
         server_ip = response.json()['server']['public_net']['ipv4']['ip']
         remove_ip_from_known_hosts(server_ip)
-
-        # Get the SSH key path (ensure it points to the correct key)
         ssh_key_path = local_private_key_path
-
-        # Username is 'root' before nodectl is installed
         username = 'root'
-
-        # Get firewall details if needed
         firewall_details = get_firewall_details(api_key, firewall_id)
-
-        # Save server information to file
         server_info_file = save_server_info(server_name, server_ip, ssh_key_path, username, "")
-
-        # Show messagebox with information and option to open the file
         message_text = f"Server '{server_name}' created successfully.\n\nServer information saved to:\n{server_info_file}"
         if os.name == 'nt':
             if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
                 os.startfile(server_info_file)
         else:
             if messagebox.askyesno("Success", f"{message_text}\n\nDo you want to open the server info file?\n\n**Note**\nYou can also use this file to import the server settings into Termius by selecting 'ssh_config' in Termius."):
-                if platform.system() == "Darwin":  # macOS
+                if platform.system() == "Darwin": 
                     subprocess.call(['open', server_info_file])
                 elif platform.system() == "Linux":
                     subprocess.call(['xdg-open', server_info_file])
@@ -1355,7 +1190,6 @@ def get_available_nodectl_versions():
         response.raise_for_status()
         releases = response.json()
         
-        # Extract version info and whether it's a prerelease
         versions = []
         for release in releases:
             tag_name = release.get("tag_name")
@@ -1367,7 +1201,6 @@ def get_available_nodectl_versions():
                 "is_prerelease": is_prerelease
             })
         
-        # Sort versions based on the parsed version
         versions.sort(key=lambda x: x["parsed_version"], reverse=True)
         
         # Get the latest stable version (non-prerelease)
@@ -1402,7 +1235,6 @@ class PasswordDialog(tk.Toplevel):
         self.transient(parent)
         self.grab_set()
 
-        # Center the window over the parent
         self.geometry(f"+{parent.winfo_rootx() + int(parent.winfo_width() / 2) - 100}+{parent.winfo_rooty() + int(parent.winfo_height() / 2) - 50}")
 
         self.value = None
@@ -1454,23 +1286,18 @@ class PasswordDialog(tk.Toplevel):
 def create_unix_aliases(server_name, ssh_command, sftp_command):
     home_dir = os.path.expanduser('~')
     bin_dir = os.path.join(home_dir, 'bin')
-
-    # Create bin directory if it doesn't exist
     os.makedirs(bin_dir, exist_ok=True)
 
-    # Ensure that ~/bin is in PATH
     bashrc_path = os.path.join(home_dir, '.bashrc')
     with open(bashrc_path, 'a') as bashrc:
         bashrc.write('\n# Add ~/bin to PATH\n')
         bashrc.write('export PATH="$HOME/bin:$PATH"\n')
 
-    # Create SSH script
     ssh_script_path = os.path.join(bin_dir, f"{server_name}_ssh")
     with open(ssh_script_path, 'w') as ssh_script:
         ssh_script.write(f"#!/bin/bash\n{ssh_command} \"$@\"\n")
     os.chmod(ssh_script_path, 0o755)
 
-    # Create SFTP script
     sftp_script_path = os.path.join(bin_dir, f"{server_name}_sftp")
     with open(sftp_script_path, 'w') as sftp_script:
         sftp_script.write(f"#!/bin/bash\n{sftp_command} \"$@\"\n")
@@ -1480,15 +1307,12 @@ def create_windows_shortcuts(server_name, ssh_command, sftp_command):
     import pythoncom
     import win32com.client
 
-    # Get the Desktop path using Windows Shell
     shell = win32com.client.Dispatch("WScript.Shell")
     desktop_path = shell.SpecialFolders("Desktop")
 
-    # Create SSH shortcut
     ssh_shortcut_path = os.path.join(desktop_path, f"{server_name} SSH.lnk")
     create_windows_shortcut_from_command(ssh_shortcut_path, ssh_command, "SSH Shortcut")
 
-    # Create SFTP shortcut
     sftp_shortcut_path = os.path.join(desktop_path, f"{server_name} SFTP.lnk")
     create_windows_shortcut_from_command(sftp_shortcut_path, sftp_command, "SFTP Shortcut")
 
@@ -1502,34 +1326,29 @@ def create_windows_shortcut_from_command(shortcut_path, command, description):
         print("PyWin32 is not installed. Cannot create shortcuts.")
         return
     
-    # Initialize the COM library
     pythoncom.CoInitialize()
 
     shell = win32com.client.Dispatch("WScript.Shell")
     shortcut = shell.CreateShortCut(shortcut_path)
 
-    # Split the command into executable and arguments
     cmd_parts = shlex.split(command)
     executable = cmd_parts[0]
     arguments = ' '.join(cmd_parts[1:])
 
-    # Find the full path to the executable
     target = None
     executable_name = executable.lower()
 
-    # Define possible paths for ssh and sftp
     if executable_name == 'ssh':
         possible_executables = [
-            'ssh.exe',  # Explicitly look for ssh.exe
+            'ssh.exe',
         ]
     elif executable_name == 'sftp':
         possible_executables = [
-            'sftp.exe',  # Explicitly look for sftp.exe
+            'sftp.exe',
         ]
     else:
         possible_executables = [executable]
 
-    # Search for the executable in PATH
     for exec_name in possible_executables:
         target = which(exec_name)
         if target and os.path.isfile(target):
@@ -1537,7 +1356,6 @@ def create_windows_shortcut_from_command(shortcut_path, command, description):
         else:
             target = None
 
-    # If not found, check common default locations
     if not target:
         if executable_name == 'ssh':
             possible_paths = [
@@ -1568,15 +1386,11 @@ def create_windows_shortcut_from_command(shortcut_path, command, description):
     shortcut.WorkingDirectory = os.getcwd()
     shortcut.Description = description
 
-    # Set icon based on the type
     if "ssh" in executable.lower():
-        # Use the built-in Command Prompt icon
         shortcut.IconLocation = r'%SystemRoot%\system32\SHELL32.dll,135'
     elif "sftp" in executable.lower():
-        # Use the built-in Network icon
         shortcut.IconLocation = r'%SystemRoot%\system32\SHELL32.dll,146'
     else:
-        # Use a default built-in icon
         shortcut.IconLocation = r'%SystemRoot%\system32\SHELL32.dll,1'
 
     shortcut.save()
@@ -1630,7 +1444,6 @@ def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, 
             return
         status_text.insert(tk.END, "P12 passphrase created successfully.\n")
 
-    # Create a new Toplevel window for the progress log
     log_window = tk.Toplevel(parent_window)
     log_window.title("Dependency Installation Progress")
     log_window.geometry("600x400")
@@ -1638,15 +1451,13 @@ def start_install_nodectl(api_key, server_name, ssh_key, status_text, p12_file, 
     log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD, height=20, width=70)
     log_text.pack(pady=10, padx=10)
 
-    # Install required packages
     install_required_packages(log_text)
     
-    log_window.destroy()  # Close the log window after installation is done
+    log_window.destroy()
     log_queue = queue.Queue()
 
     create_shortcuts = create_shortcuts_var.get()
 
-    # Start the installation in a separate thread
     install_thread = threading.Thread(
         target=install_nodectl_thread, 
         args=(
@@ -1676,17 +1487,14 @@ def download_nodectl(client, nodectl_version, log_queue, distribution="ubuntu-22
 
     max_retries = 3
     for attempt in range(max_retries):
-        # Attempt download
         stdin, stdout, stderr = client.exec_command(install_command)
         stdout_output = stdout.read().decode('utf-8')
         stderr_output = stderr.read().decode('utf-8')
 
-        # Check for 502 Bad Gateway error and retry
         if "502 Bad Gateway" not in stderr_output:
             return True
         time.sleep(10)
 
-    # Only log a final failure message
     log_queue.put("Failed to download nodectl after multiple attempts.\n")
     return False
 
@@ -1700,7 +1508,6 @@ def check_winscp_and_putty_installed():
             shell=True,
             text=True
         )
-        # Extract the installation path from the registry output
         winscp_path_match = re.search(r"InstallLocation\s+REG_SZ\s+(.+)", winscp_check)
         if winscp_path_match:
             winscp_path = winscp_path_match.group(1).strip()
@@ -1749,7 +1556,7 @@ def convert_key_to_ppk(private_key_path, winscp_path, passphrase):
         return None
 
     ppk_path = private_key_path + '.ppk'
-    if not os.path.exists(ppk_path):  # Convert key if PPK doesn't already exist
+    if not os.path.exists(ppk_path):
         # Convert all slashes to backslashes
         private_key_path = private_key_path.replace('/', '\\')
         ppk_path = ppk_path.replace('/', '\\')
@@ -1810,7 +1617,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
 
         nodeid = None
 
-        # Fetch server details
         log_queue.put(f"Fetching details for server '{server_name}'...\n")
         servers_response = requests.get(
             'https://api.hetzner.cloud/v1/servers',
@@ -1839,26 +1645,21 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             client.connect(hostname=server_ip, username='root', pkey=private_key)
             log_queue.put("SSH connection successful.\n")
 
-            # Check if tmux is installed
             stdin, stdout, stderr = client.exec_command('command -v tmux')
             tmux_path = stdout.read().decode('utf-8').strip()
             if not tmux_path:
                 log_queue.put("\ntmux not found. Installing tmux...\n")
 
-                # Run apt-get and wait for exit status
                 stdin, stdout, stderr = client.exec_command('sudo apt-get update && sudo apt-get install -y tmux')
-                # Block until command finishes
                 stdout.channel.recv_exit_status()
 
-                # Log any stderr output for debugging
                 err_msg = stderr.read().decode('utf-8').strip()
                 if err_msg:
                     log_queue.put(f"tmux install stderr:\n{err_msg}\n")
 
                 log_queue.put("tmux installed. Rechecking...\n")
 
-                # Check again if tmux is now installed
-                client.close()  # Reconnect
+                client.close()
                 client.connect(hostname=server_ip, username='root', pkey=private_key)
 
                 stdin, stdout, stderr = client.exec_command('command -v tmux')
@@ -1897,7 +1698,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 log_queue.put("nodectl download failed. Please check the logs for details.\n")
                 return
 
-            # Re-login to ensure a fresh session
             client.close()
             client.connect(hostname=server_ip, username='root', pkey=private_key)
 
@@ -1917,7 +1717,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             node_userpass_escaped = node_userpass.replace('$', '\\$')
             p12_passphrase_escaped = p12_passphrase.replace('$', '\\$')
 
-            # Determine nprofile
             if network in ["mainnet", "testnet"]:
                 nprofile = "dag-l0"
             elif network == "integrationnet":
@@ -1925,9 +1724,8 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             else:
                 nprofile = "error-l0"
 
-            # Use the absolute path to tmux in commands
             if not tmux_path:
-                tmux_path = "/usr/bin/tmux"  # fallback if something goes wrong
+                tmux_path = "/usr/bin/tmux"
 
             # Construct the nodectl install command using the absolute tmux path
             nodectl_install_command = (
@@ -1948,7 +1746,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             log_queue.put(f"\nExecuting nodectl install...\n")
             stdin, stdout, stderr = client.exec_command(nodectl_install_command)
 
-            # Capture and log output
             stdout_output = stdout.read().decode('utf-8')
             stderr_output = stderr.read().decode('utf-8')
             if stdout_output:
@@ -1973,7 +1770,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 if not log_file_path:
                     time.sleep(2)
             
-            # Tail the log file and write it to the status box
             def tail_log():
                 nonlocal nodeid
                 local_client = paramiko.SSHClient()
@@ -1995,7 +1791,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                     if installation_complete and nodeid:
                         break
 
-                # End the tmux session
                 local_client.exec_command(f"{tmux_path} kill-session -t nodectl_install")
                 local_client.close()
 
@@ -2004,17 +1799,13 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
             tail_thread.start()
             tail_thread.join()
 
-            # Update username
             username = node_username
 
-            # Get the SSH key path
             ssh_key_path = os.path.expanduser(f'~/.ssh/{ssh_key}')
 
-            # Construct the SSH and SFTP commands
             ssh_command = f'ssh -i "{ssh_key_path}" {username}@{server_ip}'
             sftp_command = f'sftp -i "{ssh_key_path}" {username}@{server_ip}'
 
-            # Save server information to file
             ssh_config_file = save_server_info(server_name, server_ip, ssh_key_path, username, network)
 
             if create_shortcuts:
@@ -2030,7 +1821,6 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 log_queue.put("Exporting server details to PuTTY...\n")
                 export_server_settings_to_putty(server_name, server_ip, ssh_key, ssh_passphrase, node_username, log_queue)
 
-            # Show messagebox with information and hyperlink to open the file
             def show_message():
                 message_window = tk.Toplevel(parent_window)
                 message_window.title("Installation Complete")
@@ -2043,14 +1833,12 @@ def install_nodectl_thread(api_key, server_name, ssh_key, log_queue, ssh_passphr
                 message_label = tk.Label(message_window, text=main_message, justify="left", wraplength=400)
                 message_label.pack(pady=10)
 
-                # Node ID entry box for copying
                 if nodeid:
                     nodeid_entry = tk.Entry(message_window, width=70, font=("Arial", 12))
                     nodeid_entry.insert(0, nodeid)
                     nodeid_entry.config(state="readonly")
                     nodeid_entry.pack(pady=10)
 
-                    # Copy on click event
                     def copy_nodeid(event):
                         parent_window.clipboard_clear()
                         parent_window.clipboard_append(nodeid)
@@ -2102,12 +1890,10 @@ def process_log_queue(status_text, log_queue):
                 status_text.see(tk.END)
         except queue.Empty:
             pass
-        # Schedule the next check
         status_text.after(100, check_log_queue)
     
     check_log_queue()
 
-# Function to export to PuTTY
 def export_to_putty(api_key, server_name):
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
     server = next((srv for srv in fetch_data(api_key)[0] if srv['name'] == server_name), None)
@@ -2132,31 +1918,26 @@ def create_app_window(api_key):
     firewalls, server_types, locations, servers = fetch_data(api_key)
     ssh_keys = fetch_ssh_keys(api_key)
 
-    # Fetch local SSH keys
     local_ssh_keys = [f for f in os.listdir(os.path.expanduser("~/.ssh")) if f.endswith('.pub')]
     local_ssh_keys = [os.path.splitext(f)[0] for f in local_ssh_keys]
 
-    # Combine Hetzner SSH keys with local SSH keys and prefix "Local: " to local keys
     ssh_names_on_hetzner = [ssh['name'] for ssh in ssh_keys]
     for local_key in local_ssh_keys:
         if local_key not in ssh_names_on_hetzner:
             ssh_keys.append({'name': f"Local: {local_key}", 'local_only': True})
 
-    # Define the BooleanVar for the checkbox conditionally
     if os.name == 'nt':
         export_to_putty_var = tk.BooleanVar()
     else:
-        export_to_putty_var = None  # Placeholder for non-Windows systems
+        export_to_putty_var = None
 
     app = tk.Toplevel()
     app.title("Hetzner Cloud Management Tool")
     app.geometry("825x535")
 
-    # Initialize ttk Style for custom button colors
     style = ttk.Style()
     style.theme_use("clam")
 
-    # Define styles for the "Create Server" and "Install nodectl" buttons
     style.configure(
         "CreateServer.TButton",
         foreground="white",
@@ -2179,7 +1960,6 @@ def create_app_window(api_key):
         background=[("active", "#000000"), ("!active", "dark green")],  # Dark green with black on hover
     )
 
-    # Set minimum window size
     app.minsize(815, 535)
 
     menu_bar = tk.Menu(app)
@@ -2240,9 +2020,7 @@ def create_app_window(api_key):
     file_menu.add_separator()
     file_menu.add_command(label="Exit", command=app.quit)
 
-    # Save configuration on close
     def on_closing():
-        # Save the configuration data before closing
         config_data = {
             "server_name": server_name_entry.get(),
             "location": selected_location_var.get(),
@@ -2317,9 +2095,6 @@ def create_app_window(api_key):
     )
     distribution_dropdown.grid(row=3, column=1, padx=(100, 0), pady=10, sticky='w')
     distribution_dropdown.set("ubuntu-22.04")
-
-
-    # tk.Label(create_server_tab, text="Server Specs:").grid(row=2, column=1, padx=5, pady=0, sticky='w')
 
     specs_frame = tk.Frame(create_server_tab)
     specs_frame.grid(row=2, column=1, columnspan=3, padx=10, pady=10, sticky='nsew')
@@ -2411,18 +2186,15 @@ def create_app_window(api_key):
             messagebox.showerror("Error", "Please select a server spec.")
             return
         
-        # Get current values
         server_name = server_name_entry.get()
         firewall_name = selected_firewall.get()
         ssh_key_name = selected_ssh.get()
 
-        # Auto-populate firewall name if left blank
         if not firewall_name:
             firewall_name = f"{server_name}-fw"
             selected_firewall.set(firewall_name)
             firewall_dropdown.set(firewall_name)
 
-        # Auto-populate SSH key name if left blank
         if not ssh_key_name:
             ssh_key_name = f"{server_name}-ssh"
             selected_ssh.set(ssh_key_name)
@@ -2491,8 +2263,6 @@ def create_app_window(api_key):
     )
 
     tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=2, padx=(10, 5), pady=10, sticky='e')
-    # tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=(35, 5), pady=10, sticky='e')
-    # tk.Label(install_nodectl_tab, text="Select SSH Key:").grid(row=0, column=1, padx=10, pady=10, sticky='e')
     ssh_dropdown2 = ttk.Combobox(
         install_nodectl_tab, 
         textvariable=selected_ssh, 
@@ -2501,8 +2271,6 @@ def create_app_window(api_key):
     )
     ssh_dropdown2.set(config.get("ssh_key", ""))
     ssh_dropdown2.grid(row=0, column=3, padx=(5, 10), pady=10, ipadx=5, sticky='ew')
-    # ssh_dropdown2.grid(row=0, column=2, padx=(5, 10), pady=10, sticky='e')
-    # ssh_dropdown2.grid(row=0, column=2, padx=10, pady=10, sticky='e')
 
     selected_ssh.trace("w", lambda *args: ssh_dropdown2.set(selected_ssh.get()))
 
@@ -2515,15 +2283,10 @@ def create_app_window(api_key):
         width=25
     )
     network_dropdown.grid(row=1, column=1, padx=(5, 10), pady=10, ipadx=5, sticky='ew')
-    # network_dropdown.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
-    # Fetch available nodectl versions
     nodectl_versions, latest_nodectl_version = get_available_nodectl_versions()
 
-    # Add a label and combobox for selecting the nodectl version
     tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=2, padx=(10, 5), pady=10, sticky='e')
-    # tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=(35, 5), pady=10, sticky='e')
-    # tk.Label(install_nodectl_tab, text="nodectl Version:").grid(row=1, column=1, padx=10, pady=10, sticky='e')
     selected_nodectl_version_var = tk.StringVar(value=latest_nodectl_version)
     nodectl_version_dropdown = ttk.Combobox(
         install_nodectl_tab,
@@ -2532,8 +2295,6 @@ def create_app_window(api_key):
         width=25
     )
     nodectl_version_dropdown.grid(row=1, column=3, padx=(5, 10), pady=10, ipadx=5, sticky='ew')
-    # nodectl_version_dropdown.grid(row=1, column=2, padx=(5, 10), pady=10, sticky='e')
-    # nodectl_version_dropdown.grid(row=1, column=2, padx=10, pady=10, sticky='e')
 
     tk.Label(install_nodectl_tab, text="Node Username:").grid(row=2, column=0, padx=10, pady=10, sticky='w')
     node_username_var = tk.StringVar(value="nodeadmin")
@@ -2549,11 +2310,9 @@ def create_app_window(api_key):
     install_nodectl_tab.grid_columnconfigure(2, weight=1)
     install_nodectl_tab.grid_columnconfigure(3, weight=1)
 
-    # Create a frame to contain the status_text and scrollbars
     status_frame = tk.Frame(install_nodectl_tab)
     status_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
 
-    # Create the Text widget inside the frame
     status_text = tk.Text(
         status_frame, 
         wrap='none',
@@ -2561,18 +2320,14 @@ def create_app_window(api_key):
     )
     status_text.grid(row=0, column=0, sticky='nsew')
 
-    # Create vertical scrollbar and attach it to the Text widget
     status_v_scrollbar = tk.Scrollbar(status_frame, orient='vertical', command=status_text.yview)
     status_v_scrollbar.grid(row=0, column=1, sticky='ns')
 
-    # Create horizontal scrollbar and attach it to the Text widget
     status_h_scrollbar = tk.Scrollbar(status_frame, orient='horizontal', command=status_text.xview)
     status_h_scrollbar.grid(row=1, column=0, sticky='ew')
 
-    # Configure the Text widget to use the scrollbars
     status_text.configure(yscrollcommand=status_v_scrollbar.set, xscrollcommand=status_h_scrollbar.set)
 
-    # Ensure the frame and its widgets resize properly
     status_frame.grid_rowconfigure(0, weight=1)
     status_frame.grid_columnconfigure(0, weight=1)
 
@@ -2603,7 +2358,6 @@ def create_app_window(api_key):
         create_shortcuts_checkbox.grid(row=5, column=1, padx=50, pady=0, sticky='w')
 
     if os.name == 'nt':
-        # Create the checkbox
         export_to_putty_checkbox = tk.Checkbutton(
             install_nodectl_tab,
             text="Export server settings to PuTTY",
@@ -2617,20 +2371,16 @@ def create_app_window(api_key):
                 winscp_path = check_winscp_and_putty_installed()
                 if not winscp_path:
                     if messagebox.askyesno("Install Required Software", "PuTTY and/or WinSCP are not installed. Do you want to install them now?"):
-                        # Open download pages
                         webbrowser.open("https://www.putty.org")
                         webbrowser.open("https://winscp.net/eng/download.php")
                         messagebox.showinfo("Installation", "Please install PuTTY and WinSCP, then click OK to continue.")
-                        # Re-check installations
                         winscp_path = check_winscp_and_putty_installed()
                         if not winscp_path:
                             messagebox.showerror("Installation Failed", "PuTTY and/or WinSCP are still not installed. Export to PuTTY will be disabled.")
                             export_to_putty_var.set(False)
                     else:
-                        # User chose not to install
                         export_to_putty_var.set(False)
 
-        # Attach the trace to the variable
         export_to_putty_var.trace_add('write', on_export_to_putty_var_changed)
 
     install_button = ttk.Button(
@@ -2767,19 +2517,15 @@ def prompt_api_key():
     root.title("API Key Input")
     root.configure(bg="#333333")
 
-    # Define the window's dimensions
     window_width = 375
     window_height = 230
 
-    # Get the screen's width and height
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
 
-    # Calculate position x, y to center the window
     position_x = (screen_width // 2) - (window_width // 2)
     position_y = (screen_height // 3) - (window_height // 2)
 
-    # Set the window geometry with width, height, and calculated position
     root.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")
 
     style = ttk.Style()
@@ -2787,16 +2533,13 @@ def prompt_api_key():
     style.configure("Custom.TButton", foreground="white", background="#8B0000", font=("Helvetica", 12, "bold"))
     style.map("Custom.TButton", background=[("active", "#000000"), ("!active", "#8B0000")])
 
-    # Instructions text with hyperlink
     instructions_frame = tk.Frame(root, bg="#333333")
     instructions_frame.grid(row=0, column=0, columnspan=2, pady=(10, 5), padx=10, sticky="nsew")
 
-    # Description label within instructions frame
     description_label = tk.Label(instructions_frame, text="To manage your cloud resources with HCloud, you'll need a Read/Write API key from your Hetzner Cloud account:", 
                                  bg="#333333", fg="white", wraplength=300, font=("Helvetica", 10), justify="center")
     description_label.pack()
 
-    # Hyperlink (as a clickable label) within instructions frame
     def open_link(event):
         import webbrowser
         webbrowser.open("https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/")
@@ -2806,7 +2549,6 @@ def prompt_api_key():
     link_label.bind("<Button-1>", open_link)    
     Tooltip(link_label, "https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/")
 
-    # Label and entry box for API key input
     ttk.Label(root, text="Paste your Hetzner API key below:", background=root['bg'], foreground="white").grid(row=1, column=0, columnspan=2, pady=(5, 5), padx=(10, 5))
 
     api_key_entry = ttk.Entry(root, show="*")
@@ -2815,16 +2557,13 @@ def prompt_api_key():
 
     Tooltip(api_key_entry, "Paste the 64-character Hetzner API Key that you created with 'Read/Write' permissions.")
 
-    # Submit button
     submit_button = ttk.Button(root, text="Submit", command=lambda: on_submit(api_key_entry.get()), style="Custom.TButton")
     submit_button.grid(row=3, column=0, columnspan=2, pady=(10, 15))
     Tooltip(submit_button, "Click to submit your API Key and start setting up HCloud.")
 
-    # Adjust grid weights for responsive resizing
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
     
-    # Hide the console window (only on Windows)
     if os.name == "nt":
         import ctypes
         ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
