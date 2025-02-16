@@ -440,21 +440,22 @@ def save_server_info(server_name, server_ip, ssh_key_path, username, network):
     with open(ssh_config_file_path, 'w') as f:
         f.write('\n'.join(ssh_config_lines))
 
-    # --- Create a duplicate (hard link if possible) in the user's .ssh folder ---
-    user_ssh_dir = os.path.join(os.path.expanduser("~"), ".ssh")
-    os.makedirs(user_ssh_dir, exist_ok=True)
-    destination_path = os.path.join(user_ssh_dir, f"{server_name}_ssh_config.txt")
+    if platform.system() == "Darwin":
+        # --- Create a duplicate (hard link if possible) in the user's .ssh folder ---
+        user_ssh_dir = os.path.join(os.path.expanduser("~"), ".ssh")
+        os.makedirs(user_ssh_dir, exist_ok=True)
+        destination_path = os.path.join(user_ssh_dir, f"{server_name}_ssh_config.txt")
 
-    # Remove the destination file if it exists
-    if os.path.exists(destination_path):
-        os.remove(destination_path)
+        # Remove the destination file if it exists
+        if os.path.exists(destination_path):
+            os.remove(destination_path)
 
-    try:
-        # Attempt to create a hard link
-        os.link(ssh_config_file_path, destination_path)
-    except Exception as e:
-        # If hard link fails (e.g., on some Windows setups), fallback to copying the file
-        shutil.copy2(ssh_config_file_path, destination_path)
+        try:
+            # Attempt to create a hard link
+            os.link(ssh_config_file_path, destination_path)
+        except Exception as e:
+            # If hard link fails (e.g., on some Windows setups), fallback to copying the file
+            shutil.copy2(ssh_config_file_path, destination_path)
 
     # Chreate an importable termius.csv (But no ssh is imorted)
     # csv_file_path = os.path.join(servers_dir, f"{server_name}_termius.csv")
