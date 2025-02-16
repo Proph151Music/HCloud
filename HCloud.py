@@ -940,6 +940,8 @@ def create_ssh_key(api_key, ssh_key_name, passphrase, ssh_dropdown):
         return None
 
     key_path = os.path.expanduser(f"~/.ssh/{ssh_key_name}")
+    os.makedirs(os.path.dirname(key_path), exist_ok=True)
+
     if os.path.exists(key_path) or os.path.exists(f"{key_path}.pub"):
         messagebox.showerror("Error", "The SSH key already exists locally and cannot be overwritten.")
         return None
