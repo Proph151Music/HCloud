@@ -232,6 +232,11 @@ echo %*
 echo %* >> "%LOGFILE%"
 goto :eof
 
+:log
+echo %*
+echo %* >> "%LOGFILE%"
+goto :eof
+
 :logOnly
 echo %* >> "%LOGFILE%"
 goto :eof
