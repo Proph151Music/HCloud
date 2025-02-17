@@ -240,7 +240,6 @@ echo
 read -p "Do you want to download and launch the latest version of the Hetzner Cloud Management Tool (HCloud)? (Y/N): " runChoice 
 case "$runChoice" in
   [Yy]* )
-    # Create a temporary file for the download
     tempFile=$(mktemp /tmp/HCloud.XXXXXX.py)
     log "Downloading HCloud.py to temporary file..."
     
@@ -251,7 +250,6 @@ case "$runChoice" in
       exit 1
     else
       log "HCloud.py downloaded successfully to temporary file."
-      # Overwrite (or create) HCloud.py in the current directory with the downloaded file
       mv -f "$tempFile" "HCloud.py"
     fi
 
