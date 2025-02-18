@@ -69,7 +69,7 @@ def ensure_tkinter():
         from tkinter import scrolledtext, ttk, messagebox, filedialog
         import tkinter.simpledialog as simpledialog
         import tkinter.font as tkFont
-        print("tkinter is available.")
+        # print("tkinter is available.")
     except ImportError:
         print("tkinter not found. Attempting to install...")
         if platform.system() == "Darwin":
